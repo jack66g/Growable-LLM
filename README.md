@@ -5,11 +5,11 @@
 小乐协议 - 碎片整理 (Defrag Scheme B): 独特的经验回放与不对称解锁机制，实现新旧认知网络的高效融合。  
 无缝继承开源智慧: 拥有一键“器官移植”脚本，直接提取官方 Qwen1.5-0.5B 的参数矩阵作为初始底座，免去昂贵的从零预训练成本。  
 🛠️ 环境准备与安装本项目依赖的库已在 requirements.txt 中列出。建议使用 Python 3.8+ 及支持 CUDA 的环境进行实验。
-1. 克隆仓库
+克隆仓库
 Bash
     git clone https://github.com/jack66g/Growable-LLM.git
     cd  Experiment_Replication
-2. 安装依赖
+安装依赖
 Bash
     pip install -r requirements.txt
 🚀 实验复现指南
