@@ -108,3 +108,6 @@ python test_med_expert.py
 控制台快捷指令：  输入 /1 或 /chat：热切换至 [高情商闲聊模式]（中医脑区物理断电）。  
 
 输入 /2 或 /med：热切换至 [老中医问诊模式]（全功率脑区全开）。  输入 q 或 exit：休眠并退出系统。  
+
+最新文件Finalized_Test，获取模型0.3b测试SmolLM2-360M-Instruct
+
