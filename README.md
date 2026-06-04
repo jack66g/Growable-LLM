@@ -109,5 +109,20 @@ python test_med_expert.py
 
 输入 /2 或 /med：热切换至 [老中医问诊模式]（全功率脑区全开）。  输入 q 或 exit：休眠并退出系统。  
 
-最新文件Finalized_Test，获取模型0.3b测试SmolLM2-360M-Instruct
+最新文件夹Finalized_Test，获取模型0.3b测试SmolLM2-360M-Instruct，这次训练采用无提示词注入版本
 
+文件model.py为最新的模型框架
+
+文件extract_weights.py，下载模型成为训练基座
+
+download_datasets.py，下载公开训练数据集
+
+train_pipeline.py开始训练模型
+
+test_baseline.py测试未训练的模型
+
+test_master.py 测试训练之后的模型
+
+run_benchmark.py此文件是跑行业基准测试
+
+Experiment文件夹为小规模实验数据，里面将会有README.md介绍，方便复现
