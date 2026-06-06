@@ -126,3 +126,22 @@ test_master.py 测试训练之后的模型
 run_benchmark.py此文件是跑行业基准测试
 
 Experiment文件夹为小规模实验数据，里面将会有README.md介绍，方便复现
+
+最新可视化训练方式----直接拿去用
+
+先启动一下项目刷新一下需要用到的文件夹
+
+Bash
+    python console.py
+
+文件夹data_cabin是存放训练数据的地方，建议把数据清洗格式弄好或者弄成多轮格式的样子
+
+文件夹local_upload_models是存放自己本地模型的地方自己的模型哦
+
+文件夹online_base_models是保存网上公开模型的地方
+
+文件夹trained_weights是存放训练之后权重的地方
+
+有bug联系我哦提供有用的意见
+
+邮箱：18200793117@163.com
