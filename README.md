@@ -89,7 +89,7 @@ train_chat_expert.py：第一阶段微调与扩容的实战脚本。内含针对
   
 Bash
   
-python train_med_expert.py
+    python train_med_expert.py
 
 2. test_med_expert.py（双脑区年轮路由测试终端）
 
@@ -103,7 +103,7 @@ python train_med_expert.py
 
 Bash
 
-python test_med_expert.py
+    python test_med_expert.py
 
 控制台快捷指令：  输入 /1 或 /chat：热切换至 [高情商闲聊模式]（中医脑区物理断电）。  
 
@@ -127,11 +127,12 @@ run_benchmark.py此文件是跑行业基准测试
 
 Experiment文件夹为小规模实验数据，里面将会有README.md介绍，方便复现
 
-最新可视化训练方式----直接拿去用
+3.    最新可视化训练方式----直接拿去用
 
 先启动一下项目刷新一下需要用到的文件夹
 
 Bash
+
     python console.py
 
 文件夹data_cabin是存放训练数据的地方，建议把数据清洗格式弄好或者弄成多轮格式的样子
