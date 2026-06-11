@@ -18,7 +18,7 @@ Bash
 
     git clone https://github.com/jack66g/Growable-LLM.git
     
-    cd  Experiment_Replication
+    cd Experiment_Replication
     
 安装依赖
 
