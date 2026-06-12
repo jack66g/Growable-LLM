@@ -8,7 +8,23 @@
 
 小乐协议 - 碎片整理 (Defrag Scheme B): 独特的经验回放与不对称解锁机制，实现新旧认知网络的高效融合。  
 
-无缝继承开源智慧: 拥有一键“器官移植”脚本，直接提取官方 Qwen1.5-0.5B 的参数矩阵作为初始底座，免去昂贵的从零预训练成本。  
+无缝继承开源智慧: 拥有一键”器官移植”脚本，直接提取官方 Qwen1.5-0.5B 的参数矩阵作为初始底座，免去昂贵的从零预训练成本。  
+
+## 目录结构
+
+```
+Growable-LLM/
+├── models.py                     # 核心模型定义（DynamicSwiGLU, GrowableLLM）
+├── stats.py                      # CSV 统计分析工具
+├── outputs/                      # 实验输出统一目录
+├── checkpoints/                  # 模型检查点
+├── data/                         # 训练数据
+├── Experiment/                   # 消融实验与基准测试
+│   └── discarded/                # 废弃/归档实验
+├── Experiment_Replication/       # Qwen1.5-0.5B 权重提取 + 领域训练
+├── Finalized_Test/               # SmolLM2-360M-Instruct 完整流水线
+└── visualization/                # MLOps CLI 训练/推理控制台
+```  
 
 🛠️ 环境准备与安装本项目依赖的库已在 requirements.txt 中列出。建议使用 Python 3.8+ 及支持 CUDA 的环境进行实验。
 
@@ -64,7 +80,7 @@ Bash
 
 预期产物： 训练完成后，将固化并保存新权重为 growable_chat_expert_epoch3.pth。
 
-📂 核心文件索引model.py：框架的核心引擎。包含 GrowableLLM 的网络定义、DynamicSwiGLU 动态扩容模块、RoPE 修正以及用于长文本生成的 KV Cache 机制。
+📂 核心文件索引models.py（根目录）：框架的核心引擎。包含 GrowableLLM 的网络定义、DynamicSwiGLU 动态扩容模块、RoPE 修正以及用于长文本生成的 KV Cache 机制。
 
 convert_qwen_to_growable.py：权重无损转换与映射脚本。
 
@@ -111,7 +127,7 @@ Bash
 
 最新文件夹Finalized_Test，获取模型0.3b测试SmolLM2-360M-Instruct，这次训练采用无提示词注入版本
 
-文件model.py为最新的模型框架
+model.py为最新的全局模型框架（根目录 models.py，各实验目录统一引用）
 
 文件extract_weights.py，下载模型成为训练基座
 

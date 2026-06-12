@@ -1,0 +1,10 @@
+# Output directories
+outputs/*
+
+# Checkpoints and data
+checkpoints/
+data/
+
+# Python cache
+__pycache__/
+*.pyc
