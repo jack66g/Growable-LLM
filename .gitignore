@@ -8,3 +8,15 @@ data/
 # Python cache
 __pycache__/
 *.pyc
+
+# Claude code
+
+.claude/
+
+# venv
+
+venv/
+
+# IDE
+
+.vscode/
