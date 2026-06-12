@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # ============================================================
 # Global Config
@@ -48,7 +48,7 @@ SEQ_LEN = 64
 
 EXPAND_PER_STAGE = 64
 
-SAVE_DIR = "continual_benchmark_outputs"
+SAVE_DIR = "outputs/continual_benchmark"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # ============================================================

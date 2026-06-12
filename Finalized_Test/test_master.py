@@ -1,6 +1,6 @@
 import torch
 from transformers import AutoTokenizer
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

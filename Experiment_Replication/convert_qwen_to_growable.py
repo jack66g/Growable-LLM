@@ -1,6 +1,6 @@
 import torch
 from transformers import AutoModelForCausalLM
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 def main():
     print("⏳ 正在从 HuggingFace 提取 Qwen1.5-0.5B 官方大脑矩阵...")

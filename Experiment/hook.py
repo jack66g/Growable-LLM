@@ -16,7 +16,7 @@ import torch.nn as nn
 
 from tqdm import tqdm
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # ============================================================
 # CONFIG
@@ -24,7 +24,7 @@ from model import GrowableLLM, ModelConfig
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-SAVE_DIR = "hooklock_final"
+SAVE_DIR = "outputs/hooklock_final"
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 

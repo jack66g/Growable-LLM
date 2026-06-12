@@ -13,10 +13,10 @@ import torch
 from tqdm import tqdm
 
 # 从你不变的 model.py 中导入
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-SAVE_DIR = "defrag_benchmark_results"
+SAVE_DIR = "outputs/defrag_benchmark"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 NUM_DOMAINS = 10

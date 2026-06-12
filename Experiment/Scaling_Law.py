@@ -70,7 +70,7 @@ import seaborn as sns
 from tqdm import tqdm
 from scipy.optimize import curve_fit
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # ============================================================
 # Config
@@ -78,7 +78,7 @@ from model import GrowableLLM, ModelConfig
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-SAVE_DIR = "scaling_law_outputs"
+SAVE_DIR = "outputs/scaling_law"
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 

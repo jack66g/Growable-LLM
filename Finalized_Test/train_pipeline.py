@@ -6,7 +6,7 @@ from datasets import load_from_disk
 from tqdm import tqdm
 
 # 导入我们手写的完美架构
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # ==========================================
 # RTX 6000 Pro "大火力" 配置参数

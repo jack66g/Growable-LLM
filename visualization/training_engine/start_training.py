@@ -9,13 +9,8 @@ import torch.nn.functional as F
 from torch.optim import AdamW
 from transformers import AutoTokenizer
 
-# 动态打通系统路径，去找外层的 model.py
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-try:
-    from model import GrowableLLM, ModelConfig
-except ImportError:
-    print("⚠️ 找不到 model.py，请确保它在项目根目录！")
-    sys.exit(1)
+from models import GrowableLLM, ModelConfig
 
 class Color:
     CYAN = '\033[96m'

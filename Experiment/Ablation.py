@@ -71,7 +71,7 @@ import seaborn as sns
 from tqdm import tqdm
 from collections import defaultdict
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # ============================================================
 # Config
@@ -79,7 +79,7 @@ from model import GrowableLLM, ModelConfig
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-SAVE_DIR = "neural_age_outputs"
+SAVE_DIR = "outputs/neural_age"
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 

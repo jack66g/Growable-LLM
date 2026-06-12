@@ -66,7 +66,7 @@ import seaborn as sns
 
 from tqdm import tqdm
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # ============================================================
 # Config
@@ -74,7 +74,7 @@ from model import GrowableLLM, ModelConfig
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-SAVE_DIR = "catastrophic_forgetting_outputs"
+SAVE_DIR = "outputs/catastrophic_forgetting"
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 

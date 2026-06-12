@@ -4,7 +4,7 @@
 
 import torch
 from transformers import AutoModelForCausalLM
-from model import GrowableLLM, ModelConfig  # 导入你的模型架构
+from models import GrowableLLM, ModelConfig  # 导入你的模型架构
 
 def convert_hf_to_growable_llm():
     model_id = "HuggingFaceTB/SmolLM2-360M-Instruct"

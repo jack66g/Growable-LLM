@@ -59,7 +59,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # ============================================================
 # Config
@@ -77,7 +77,7 @@ SEQ_LEN = 64
 
 EXPAND_DIM = 64
 
-SAVE_DIR = "cross_interference_outputs"
+SAVE_DIR = "outputs/cross_interference"
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 

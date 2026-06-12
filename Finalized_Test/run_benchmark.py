@@ -7,7 +7,7 @@ import math
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from datasets import load_dataset
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TOKENIZER_ID = "HuggingFaceTB/SmolLM2-360M-Instruct"

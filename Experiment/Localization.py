@@ -60,7 +60,7 @@ from tqdm import tqdm
 from sklearn.manifold import TSNE
 from collections import defaultdict
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # ============================================================
 # Config
@@ -68,7 +68,7 @@ from model import GrowableLLM, ModelConfig
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-SAVE_DIR = "knowledge_localization_outputs"
+SAVE_DIR = "outputs/knowledge_localization"
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 def generate_isolated_random_data(vocab_size, domain_id, batch_size=4, seq_len=32):
     """绝对隔离的无规律随机数据，迫使模型记忆，杜绝周期性巧合"""

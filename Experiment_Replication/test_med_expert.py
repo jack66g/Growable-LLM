@@ -4,7 +4,7 @@ import types
 import torch.nn.functional as F
 from transformers import AutoTokenizer
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 # =====================================================
 # [配置区：双脑区唤醒 + 年轮物理路由]

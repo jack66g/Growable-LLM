@@ -5,14 +5,8 @@ import time
 import torch
 from transformers import AutoTokenizer
 
-# 动态将上一级目录加入系统路径，确保能正常 import 外层的 model.py
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-try:
-    from model import GrowableLLM, ModelConfig
-except ImportError:
-    print("⚠️ 无法导入 model.py，请确保它在项目根目录中！")
-    sys.exit(1)
+from models import GrowableLLM, ModelConfig
 
 class Color:
     CYAN = '\033[96m'

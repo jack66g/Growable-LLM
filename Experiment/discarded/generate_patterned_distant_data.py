@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 
-from model import GrowableLLM, ModelConfig
+from models import GrowableLLM, ModelConfig
 
 def generate_concentrated_pattern_data(vocab_size, domain_id, batch_size=4, seq_len=32):
     """
