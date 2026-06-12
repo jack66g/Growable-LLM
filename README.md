@@ -1,164 +1,165 @@
-🧠 GrowableLLM: 动态生长与终身学习大模型实验框架本项目是一个极具实验性质的自回归语言模型（LLM）框架，旨在探索大模型的“终身学习”（Lifelong Learning）与“脑区物理扩容”机制。
+# GrowableLLM: 动态生长与终身学习大模型实验框架
 
-通过打破传统 LLM 训练后参数固定的局限，本项目允许模型在不遗忘旧有知识的前提下，通过动态增加前馈神经网络（FFN）的维度来学习新领域的知识（如：高情商对话、医学专家等）。
+> 探索大模型"终身学习"（Lifelong Learning）与"脑区物理扩容"机制的实验框架。通过正交突触扩展，让 LLM 在不回放旧数据的前提下动态生长神经元，持续学习新领域知识。
 
-✨ 核心特性动态扩容 (Dynamic Expansion): 运行时物理增加神经元，支持零初始化（Zero-Initialization），新突触平滑接入。  
+---
 
-完美梯度锁 (Perfect Gradient Lock): 彻底隔绝灾难性遗忘。扩容后通过底层的 Hook 机制，精准冻结基座旧脑区的梯度，确保每次特训只影响新长出的神经元。  
+## 项目概述
 
-小乐协议 - 碎片整理 (Defrag Scheme B): 独特的经验回放与不对称解锁机制，实现新旧认知网络的高效融合。  
+传统 LLM 训练完成后参数即被固定，学习新知识必然导致灾难性遗忘（Catastrophic Forgetting）。GrowableLLM 另辟蹊径：**不为模型"覆盖重写"，而是为它物理生长新脑区。**
 
-无缝继承开源智慧: 拥有一键”器官移植”脚本，直接提取官方 Qwen1.5-0.5B 的参数矩阵作为初始底座，免去昂贵的从零预训练成本。  
+核心思路是运行时动态增加 FFN 维度（最多扩展至 7B 参数量级），通过完美梯度锁冻结旧参数，让新知识只写入新长出的神经元，从而实现无回放的持续预训练。
 
-## 目录结构
+---
+
+## 核心特性
+
+- **动态扩容（Dynamic Expansion）**：运行时物理增加 FFN 神经元维度。新突触零初始化接入，前向输出不变，梯度从第一次 backward 开始正常流动。
+- **完美梯度锁（Perfect Gradient Lock）**：通过 PyTorch register_hook 机制，精准冻结基座旧脑区的梯度，确保每次特训只影响新长出的神经元，彻底隔绝灾难性遗忘。
+- **碎片整理（Defrag Scheme B）**：不对称解锁机制——临时解锁顶层 Attention 模块，以极低学习率回放少量隐藏状态，实现新旧知识融合而不覆盖旧表示。
+- **即插即用基座**：支持从 HuggingFace 提取 Qwen1.5-0.5B / SmolLM2-360M 等模型权重，无缝映射到 GrowableLLM 架构。
+
+---
+
+## 与 PNN 的关系
+
+GrowableLLM 的设计思想深受 **Progressive Neural Networks (PNN)** 启发，但在实现路径上有本质差异：
+
+| 维度 | PNN | GrowableLLM |
+|------|-----|-------------|
+| **扩容单位** | 每学一个新任务，新增一整个独立的网络"列"（column） | 每学一个新领域，在每层 FFN 内部增量增加 hidden 维度 |
+| **参数增长** | 参数量随任务数线性倍增（每列 ~0.5B，2 个任务即翻倍） | 参数量随领域数微增（每领域 ~10M，粒度 128~256 dim） |
+| **跨任务交互** | 旧列通过 lateral connection 向新列提供特征 | 新旧知识共享同一网络实体，通过神经元年龄/梯度锁物理隔离 |
+| **推理成本** | 所有列需同时参与推理，延迟随任务数线性增长 | 推理时网络规模不变，物理路由可选择性"断电"旧脑区 |
+| **核心机制** | lateral connection + 冻结旧列 | 正交突触扩展 + 完美梯度锁 + Defrag 碎片整理 |
+
+简言之，**PNN 是横向"叠层"——加整列；GrowableLLM 是纵向"生长"——扩单层。** 前者适合任务边界清晰的场景，后者更贴近生物大脑的渐进式学习，在 LLM 的连续预训练场景下参数效率更高。
+
+---
+
+## 快速开始
+
+### 环境要求
+
+- Python 3.8+
+- CUDA 11.7+（推荐）
+
+### 安装
+
+```bash
+git clone https://github.com/jack66g/Growable-LLM.git
+cd Growable-LLM
+pip install -r Experiment_Replication/requirements.txt
+```
+
+### 最小运行示例（模型自测试）
+
+```bash
+python models.py
+```
+
+该命令会执行模型定义中的 `__main__` 自测试：构建 GrowableLLM → 前向传播 → 动态扩容 → 梯度锁验证 → 碎片整理 → 文本生成 → 检查点保存/加载。
+
+---
+
+## 项目结构
 
 ```
 Growable-LLM/
-├── models.py                     # 核心模型定义（DynamicSwiGLU, GrowableLLM）
+├── models.py                     # 核心模型定义（GrowableLLM, DynamicSwiGLU）
 ├── stats.py                      # CSV 统计分析工具
 ├── outputs/                      # 实验输出统一目录
-├── checkpoints/                  # 模型检查点
-├── data/                         # 训练数据
-├── Experiment/                   # 消融实验与基准测试
-│   └── discarded/                # 废弃/归档实验
-├── Experiment_Replication/       # Qwen1.5-0.5B 权重提取 + 领域训练
-├── Finalized_Test/               # SmolLM2-360M-Instruct 完整流水线
-└── visualization/                # MLOps CLI 训练/推理控制台
-```  
+│   ├── catastrophic_forgetting/
+│   ├── continual_benchmark/
+│   ├── cross_interference/
+│   ├── defrag_benchmark/
+│   ├── expansion_efficiency/
+│   ├── hooklock_final/
+│   ├── knowledge_localization/
+│   ├── neural_age/
+│   └── scaling_law/
+├── Experiment/                   # 8 个消融实验与基准测试
+│   ├── Ablation.py               # 神经年龄消融
+│   ├── Forgetting.py             # 灾难性遗忘压力测试
+│   ├── Localization.py           # 知识定位基准
+│   ├── Matrix.py                 # 交叉干扰测试（10 领域）
+│   ├── Performance.py            # 扩容效率基准
+│   ├── Scaling_Law.py            # Scaling Law 拟合
+│   ├── benchmark_fusion.py       # Defrag 必要性对比
+│   ├── hook.py                   # Hook Lock A/B 测试
+│   ├── memory_test.py            # 持续学习基准（BWT/FWT）
+│   └── discarded/                # 已归档实验脚本
+├── Experiment_Replication/       # Qwen1.5-0.5B 复现流水线
+│   ├── convert_qwen_to_growable.py   # 权重提取与转换
+│   ├── train_chat_expert.py          # 阶段一：聊天脑区训练
+│   ├── train_med_expert.py           # 阶段二：医学脑区训练 + Defrag
+│   ├── test_chat_expert.py           # 聊天人格测试终端
+│   └── test_med_expert.py            # 双人格热切换测试终端
+├── Finalized_Test/
+│   ├── extract_weights.py
+│   ├── download_datasets.py
+│   ├── train_pipeline.py
+│   ├── test_baseline.py
+│   ├── test_master.py
+│   └── run_benchmark.py
+└── visualization/
+    ├── console.py
+    ├── base_builder/pull_engine.py
+    ├── training_engine/
+    │   ├── train_configurator.py
+    │   └── start_training.py
+    └── inference/chat_console.py
+```
 
-🛠️ 环境准备与安装本项目依赖的库已在 requirements.txt 中列出。建议使用 Python 3.8+ 及支持 CUDA 的环境进行实验。
+---
 
-克隆仓库
+## 使用指南
 
-Bash
+### 实验复现（Qwen1.5-0.5B）
 
-    git clone https://github.com/jack66g/Growable-LLM.git
-    
-    cd Experiment_Replication
-    
-安装依赖
+三步复现从基座提取到双领域专家训练的完整流程：
 
-Bash
+```bash
+cd Experiment_Replication
 
-    pip install -r requirements.txt
-    
-🚀 实验复现指南
+# 步骤 1：提取 Qwen1.5-0.5B 权重
+python convert_qwen_to_growable.py
+# → 输出：growable_qwen_base.pth
 
-请严格按照以下步骤执行，以复现从“纯净基座提取”到“高情商脑区生长”的全过程。
+# 步骤 2：训练高情商对话脑区（扩容 256 维）
+python train_chat_expert.py
+# → 输出：growable_chat_expert_epoch3.pth
 
-阶段一：提取并重铸初始大脑矩阵我们的实验不从零开始，而是基于 HuggingFace 上的 Qwen/Qwen1.5-0.5B 提取参数，并完美映射到我们的 GrowableLLM 架构中。
+# 步骤 3：训练老中医脑区（扩容 128 维 + Defrag 融合）
+python train_med_expert.py
+# → 输出：growable_med_expert_epoch3.pth
 
-运行指令：
+# 步骤 4：双人格热切换测试
+python test_med_expert.py
+# → 控制台输入 /chat 或 /med 切换人格
+```
+---
 
-Bash
+## 技术栈
 
-     python convert_qwen_to_growable.py
-     
-发生了什么？ 脚本会自动下载 Qwen 的权重，将 24 层 Transformer 块的注意力层（Attention）和全连接层（MLP）无缝移植到本项目的动态框架中。
+| 组件 | 技术 |
+|------|------|
+| 深度学习框架 | PyTorch |
+| 模型架构 | SwiGLU FFN + RoPE + GQA Attention |
+| 动态扩容 | 自定义 DynamicSwiGLU.expand() |
+| 梯度隔离 | PyTorch register_hook |
+| 基座模型 | Qwen1.5-0.5B / SmolLM2-360M-Instruct |
+| 依赖管理 | pip / requirements.txt |
 
-预期产物： 运行成功后，会在当前目录生成一个名为 growable_qwen_base.pth 的核心权重文件。
+---
 
-阶段二：定向生长“高情商对话”脑区
+## 相关项目
 
-在拥有了具备通用世界观的基座后，我们将为其注入第一层专业技能。这一步会触发模型的动态扩容机制。
+- [Qwen1.5](https://huggingface.co/Qwen/Qwen1.5-0.5B) — 基座模型
 
-⚠️ 前置准备： 确保你的项目根目录下存在用于训练的高情商对话语料文件 daily_chat_clean.jsonl。
+---
 
-运行指令：Bash
 
-     python train_chat_expert.py
-     
-发生了什么？
+## 联系
 
-模型读取 growable_qwen_base.pth 并加载通用认知。
-
-触发 expand_model(extra_dim=256)，为所有 24 层 FFN 动态长出 256 维的空白神经元。
-
-启动完美梯度锁，0.5B 基座原本的常识被绝对冻结，梯度仅注入新增的 256 维突触。
-
-使用 ChatML 格式和混合精度训练（AMP）跑满 3 个 Epoch。 
-
-预期产物： 训练完成后，将固化并保存新权重为 growable_chat_expert_epoch3.pth。
-
-📂 核心文件索引models.py（根目录）：框架的核心引擎。包含 GrowableLLM 的网络定义、DynamicSwiGLU 动态扩容模块、RoPE 修正以及用于长文本生成的 KV Cache 机制。
-
-convert_qwen_to_growable.py：权重无损转换与映射脚本。
-
-train_chat_expert.py：第一阶段微调与扩容的实战脚本。内含针对 Windows 多进程 DataLoader 优化过的 ChatCollate 批处理类。
-
-第二阶段，中医矩阵的训练
-
-📂 文件功能简介
-
-1. train_med_expert.py（训练与融合引擎）
-
-干什么：负责把模型从第一阶段（高情商闲聊）升级到第二阶段（老中医问诊）。 
-
-黑魔法：Defrag阶段：先用极低学习率回放部分闲聊数据，精准解锁顶层，让新旧特征平滑对齐。 
-
-物理扩容阶段：自动在 FFN 层动态长出 128 维的医学新突触，锁死其余旧维度的梯度，100% 隔离训练中医知识。
-
-🚀 怎么启动
-在启动前，请确保你的根目录下已经有第一阶段的权重 growable_chat_expert_epoch3.pth，以及对应的数据集。 
-  
-步骤一：启动老中医脑区特训运行生长脚本，等待 3 轮特训结束。完成后会在本地固化出 growable_med_expert_epoch3.pth 权重。
-  
-Bash
-  
-    python train_med_expert.py
-
-2. test_med_expert.py（双脑区年轮路由测试终端）
-
-干什么：用于热切换测试“高情商”和“老中医”双重人格的命令行终端。  
-
-黑魔法：利用 Monkey Patch 动态拦截 SwiGLU 激活函数。
-
-当切到闲聊模式时，强行在物理层把 3072 维之后的中医突触“断电”丢弃，绝不污染聊天人格的纯净度。
-
-步骤二：开启多脑区物理隔离控制台训练完成后，直接启动测试终端，体验双人格热切换。  
-
-Bash
-
-    python test_med_expert.py
-
-控制台快捷指令：  输入 /1 或 /chat：热切换至 [高情商闲聊模式]（中医脑区物理断电）。  
-
-输入 /2 或 /med：热切换至 [老中医问诊模式]（全功率脑区全开）。  输入 q 或 exit：休眠并退出系统。  
-
-最新文件夹Finalized_Test，获取模型0.3b测试SmolLM2-360M-Instruct，这次训练采用无提示词注入版本
-
-model.py为最新的全局模型框架（根目录 models.py，各实验目录统一引用）
-
-文件extract_weights.py，下载模型成为训练基座
-
-download_datasets.py，下载公开训练数据集
-
-train_pipeline.py开始训练模型
-
-test_baseline.py测试未训练的模型
-
-test_master.py 测试训练之后的模型
-
-run_benchmark.py此文件是跑行业基准测试
-
-Experiment文件夹为小规模实验数据，里面将会有README.md介绍，方便复现
-
-3.    最新可视化训练方式----直接拿去用------训练的时候介意弄好system提示词哦这样更能激活新增加的知识区--------现在对通义千问的模型支持稀碎建议使用LLaMA架构的ai
-
-先启动一下项目刷新一下需要用到的文件夹
-
-Bash
-
-    python console.py
-
-文件夹data_cabin是存放训练数据的地方，建议把数据清洗格式弄好或者弄成多轮格式的样子
-
-文件夹local_upload_models是存放自己本地模型的地方自己的模型哦
-
-文件夹online_base_models是保存网上公开模型的地方
-
-文件夹trained_weights是存放训练之后权重的地方
-
-有bug联系我哦提供有用的意见
-
-邮箱：18200793117@163.com
+有 Bug 或建议欢迎联系：**18200793117@163.com**
