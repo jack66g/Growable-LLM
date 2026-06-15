@@ -1,4 +1,5 @@
 import os
+import json
 import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
@@ -9,21 +10,32 @@ from tqdm import tqdm
 from models import GrowableLLM, ModelConfig
 
 # ==========================================
-# RTX 6000 Pro "大火力" 配置参数
+# 从统一配置文件读取
 # ==========================================
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+with open(CONFIG_PATH, "r") as f:
+    full_config = json.load(f)
+
+model_cfg = full_config["model"]
+train_cfg = full_config["training"]
+hw_cfg = full_config["hardware"]["profiles"][full_config["hardware"]["profile"]]
+tk_cfg = full_config["tokenizer"]
+paths = full_config["paths"]
+
 DEVICE = "cuda"
-BATCH_SIZE = 32          # 96GB 显存，直接拉满！(如果显存还有余，甚至可以 128)
-SEQ_LEN = 4096           # 足够覆盖绝大多数逻辑推演和代码
-LR = 2e-4                # 扩容层学习率可以稍微大一点
-EXPAND_DIM = 256         # 每次正交扩容 256 维 (克制且高效)
-EPOCHS_PER_PHASE = 1     # 验证想法先跑 1 个 Epoch
-NUM_WORKERS = 8          # 多线程拉取数据，不让 GPU 等待 CPU
+BATCH_SIZE = hw_cfg["batch_size"]
+SEQ_LEN = hw_cfg["seq_len"]
+LR = train_cfg["learning_rate"]
+EXPAND_DIM = train_cfg["expand_dim"]
+EPOCHS_PER_PHASE = train_cfg["epochs_per_phase"]
+NUM_WORKERS = hw_cfg["num_workers"]
+ACCUMULATION_STEPS = hw_cfg["gradient_accumulation_steps"]
 
 # ==========================================
 # 数据处理与 Tokenizer
 # ==========================================
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-tokenizer = AutoTokenizer.from_pretrained("HuggingFaceTB/SmolLM2-360M-Instruct")
+os.environ["HF_ENDPOINT"] = tk_cfg["hf_endpoint"]
+tokenizer = AutoTokenizer.from_pretrained(tk_cfg["model_id"])
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -33,22 +45,22 @@ def collate_fn(batch):
     for item in batch:
         instruction = item.get('instruction', '')
         # Evol-Code 的标签是 'output'，Magicoder 是 'response'，我们做个兼容
-        response = item.get('output', item.get('response', '')) 
-        
+        response = item.get('output', item.get('response', ''))
+
         text = f"<|im_start|>user\n{instruction}<|im_end|>\n<|im_start|>assistant\n{response}<|im_end|>\n"
         texts.append(text)
-        
+
     encoded = tokenizer(
-        texts, 
-        truncation=True, 
-        max_length=SEQ_LEN, 
-        padding="max_length", 
+        texts,
+        truncation=True,
+        max_length=SEQ_LEN,
+        padding="max_length",
         return_tensors="pt"
     )
-    
+
     input_ids = encoded["input_ids"]
     labels = input_ids.clone()
-    
+
     # 遮蔽 (Mask) 掉 Padding 部分，不参与 Loss 计算
     labels[encoded["attention_mask"] == 0] = -100
     return input_ids.to(DEVICE), labels.to(DEVICE)
@@ -85,21 +97,29 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
     for epoch in range(EPOCHS_PER_PHASE):
         pbar = tqdm(dataloader, desc=f"{phase_name} Epoch {epoch+1}")
         total_loss = 0
-        
+        optimizer.zero_grad()
+
         for step, (input_ids, labels) in enumerate(pbar):
-            optimizer.zero_grad()
-            
             # 开启 AMP Bfloat16 大幅加速计算
             with torch.autocast(device_type=DEVICE, dtype=torch.bfloat16):
                 logits, loss = model(input_ids, labels=labels)
-                
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
-            
+
+            # 梯度累积：除 ACCUMULATION_STEPS 实现小 batch 等效大 batch
+            (loss / ACCUMULATION_STEPS).backward()
+
+            if (step + 1) % ACCUMULATION_STEPS == 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
+                optimizer.zero_grad()
+
             total_loss += loss.item()
             if step % 10 == 0:
                 pbar.set_postfix({"Loss": f"{loss.item():.4f}"})
+
+        # 清空剩余梯度
+        if (step + 1) % ACCUMULATION_STEPS != 0:
+            optimizer.step()
+            optimizer.zero_grad()
                 
     print(f"✅ {phase_name} 扩容训练完成! 平均 Loss: {total_loss/len(dataloader):.4f}")
     
@@ -114,37 +134,34 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
 # 终极总指挥部 (Main)
 # ==========================================
 if __name__ == "__main__":
-    # 开启 CUDNN 基准测试，让 RTX 6000 自动寻找最快卷积算法
-    torch.backends.cudnn.benchmark = True 
-    
-    # 1. 实例化 SmolLM2-360M 配置
-    config = ModelConfig(
-        vocab_size=49152, hidden_dim=960, num_layers=32, 
-        num_heads=15, num_kv_heads=5, initial_ffn_dim=2560, rope_theta=100000
-    )
-    
+    # 开启 CUDNN 基准测试，让 GPU 自动寻找最快卷积算法
+    torch.backends.cudnn.benchmark = True
+
+    # 1. 从配置文件读取模型架构
+    config = ModelConfig(**model_cfg)
+
     model = GrowableLLM(config).to(DEVICE)
-    
+
     # 2. 载入原始基座权重
-    print("⏳ 载入 SmolLM2 基座权重...")
-    model.load_state_dict(torch.load("smollm2_360m_growable.pt"))
+    print(f"⏳ 载入基座权重: {paths['base_weights']}")
+    model.load_state_dict(torch.load(paths["base_weights"]))
     print("✅ 基座载入完毕！")
-    
+
     # 3. 载入本地数据集
-    ds_logic = load_from_disk("growable_llm_data/magicoder_110k")
-    ds_code = load_from_disk("growable_llm_data/evol_code_80k")
-    
+    ds_logic = load_from_disk(paths["magicoder_data"])
+    ds_code = load_from_disk(paths["evolcode_data"])
+
     # ================= 激进训练开始 =================
-    
-    # Phase 1: 纯逻辑推演注入 (+256维)
+
+    # Phase 1: 纯逻辑推演注入
     run_training_phase(model, phase_name="[Stage 1: Logic Reasoning]", dataset=ds_logic, extra_dim=EXPAND_DIM)
-    
-    # Phase 2: 代码语法与生成注入 (+256维)
+
+    # Phase 2: 代码语法与生成注入
     run_training_phase(model, phase_name="[Stage 2: Code Generation]", dataset=ds_code, extra_dim=EXPAND_DIM)
-    
+
     # ==============================================
-    
+
     # 4. 保存最终的终极生命体
-    final_path = "GrowableLLM_360M_LogicCode_Master.pt"
+    final_path = paths["master_weights"]
     torch.save(model.state_dict(), final_path)
     print(f"\n🎉 连环正交扩展全部完成！终极权重已保存至: {final_path}")

@@ -1,5 +1,3 @@
-print("Hello，我被执行了！现代量化评测台启动中...")
-
 import os
 import json
 import torch
@@ -9,24 +7,34 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from datasets import load_dataset
 from models import GrowableLLM, ModelConfig
 
+# =============================================
+# 从统一配置文件读取
+# =============================================
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+with open(CONFIG_PATH, "r") as f:
+    full_config = json.load(f)
+
+model_cfg = full_config["model"]
+train_cfg = full_config["training"]
+tk_cfg = full_config["tokenizer"]
+paths = full_config["paths"]
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-TOKENIZER_ID = "HuggingFaceTB/SmolLM2-360M-Instruct"
+TOKENIZER_ID = tk_cfg["model_id"]
+EXPAND_DIM = train_cfg["expand_dim"]
 
 # =====================================================
-# 1. 模型加载器 (保持你的原汁原味)
+# 1. 模型加载器
 # =====================================================
 def get_base_config():
-    return ModelConfig(
-        vocab_size=49152, hidden_dim=960, num_layers=32, 
-        num_heads=15, num_kv_heads=5, initial_ffn_dim=2560, rope_theta=100000
-    )
+    return ModelConfig(**model_cfg)
 
 def load_baseline():
     print("\n⚖️ 正在加载 [Baseline] 原始基座模型...")
     config = get_base_config()
     model = GrowableLLM(config).to(DEVICE)
     try:
-        model.load_state_dict(torch.load("smollm2_360m_growable.pt", weights_only=True, map_location=DEVICE))
+        model.load_state_dict(torch.load(paths["base_weights"], weights_only=True, map_location=DEVICE))
         model.eval()
         print("✅ Baseline 加载成功！")
         return model, "Baseline"
@@ -38,13 +46,13 @@ def load_master():
     print("\n🚀 正在加载 [Master] GrowableLLM 特训模型...")
     config = get_base_config()
     model = GrowableLLM(config).to(DEVICE)
-    
-    print("📐 还原 Master 正交扩张维度 (+256, +256)...")
-    model.expand_model(extra_dim=256) 
-    model.expand_model(extra_dim=256) 
-    
+
+    print(f"📐 还原 Master 正交扩张维度 (+{EXPAND_DIM}, +{EXPAND_DIM})...")
+    model.expand_model(extra_dim=EXPAND_DIM)
+    model.expand_model(extra_dim=EXPAND_DIM)
+
     try:
-        model.load_state_dict(torch.load("GrowableLLM_360M_LogicCode_Master.pt", weights_only=True, map_location=DEVICE))
+        model.load_state_dict(torch.load(paths["master_weights"], weights_only=True, map_location=DEVICE))
         model.eval()
         print("✅ Master 加载成功！")
         return model, "Master"

@@ -1,0 +1,49 @@
+{
+  "_comment": "Finalized_Test pipeline unified configuration",
+
+  "model": {
+    "vocab_size": 49152,
+    "hidden_dim": 960,
+    "num_layers": 32,
+    "num_heads": 15,
+    "num_kv_heads": 5,
+    "initial_ffn_dim": 2560,
+    "rope_theta": 100000
+  },
+
+  "paths": {
+    "base_weights": "smollm2_360m_growable.pt",
+    "master_weights": "GrowableLLM_360M_LogicCode_Master.pt",
+    "magicoder_data": "growable_llm_data/magicoder_110k",
+    "evolcode_data": "growable_llm_data/evol_code_80k"
+  },
+
+  "tokenizer": {
+    "model_id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+    "hf_endpoint": "https://hf-mirror.com"
+  },
+
+  "hardware": {
+    "profile": "8gb",
+    "profiles": {
+      "8gb":  { "batch_size": 2,  "seq_len": 1024, "gradient_accumulation_steps": 16, "num_workers": 4 },
+      "16gb": { "batch_size": 8,  "seq_len": 2048, "gradient_accumulation_steps": 4,  "num_workers": 4 },
+      "24gb": { "batch_size": 16, "seq_len": 4096, "gradient_accumulation_steps": 2,  "num_workers": 8 },
+      "96gb": { "batch_size": 32, "seq_len": 4096, "gradient_accumulation_steps": 1,  "num_workers": 8 }
+    }
+  },
+
+  "training": {
+    "learning_rate": 2e-4,
+    "expand_dim": 256,
+    "epochs_per_phase": 1
+  },
+
+  "inference": {
+    "max_new_tokens": 512,
+    "temperature": 0.3,
+    "top_k": 50,
+    "top_p": 0.9,
+    "repetition_penalty": 1.2
+  }
+}

@@ -5,6 +5,12 @@ outputs/*
 checkpoints/
 data/
 
+# Large model weight files
+*.pt
+
+# Downloaded training datasets
+growable_llm_data/
+
 # Python cache
 __pycache__/
 *.pyc
