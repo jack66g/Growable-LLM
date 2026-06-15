@@ -102,13 +102,6 @@ Growable-LLM/
 │   ├── test_baseline.py
 │   ├── test_master.py
 │   └── run_benchmark.py
-└── visualization/
-    ├── console.py
-    ├── base_builder/pull_engine.py
-    ├── training_engine/
-    │   ├── train_configurator.py
-    │   └── start_training.py
-    └── inference/chat_console.py
 ```
 
 ---
