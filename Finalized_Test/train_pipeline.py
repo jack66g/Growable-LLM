@@ -83,7 +83,7 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
         shuffle=True, 
         collate_fn=collate_fn,
         num_workers=NUM_WORKERS,
-        pin_memory=True # 加速显存转移
+        pin_memory=False  # collate_fn 已返回 GPU 张量，pin_memory 只支持 CPU 张量
     )
     
     # 3. 配置优化器 (此时 require_grad=True 的只有新扩容的矩阵部分)
