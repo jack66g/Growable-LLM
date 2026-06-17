@@ -1,50 +1,84 @@
-# GrowableLLM: 动态生长与终身学习大模型实验框架
+<h1 align="center">GrowableLLM</h1>
 
-> 探索大模型"终身学习"（Lifelong Learning）与"脑区物理扩容"机制的实验框架。通过正交突触扩展，让 LLM 在不回放旧数据的前提下动态生长神经元，持续学习新领域知识。
+<div align="center">
 
----
+[English](README.md) | [简体中文](README_CN.md)
 
-## 项目概述
+</div>
 
-传统 LLM 训练完成后参数即被固定，学习新知识必然导致灾难性遗忘（Catastrophic Forgetting）。GrowableLLM 另辟蹊径：**不为模型"覆盖重写"，而是为它物理生长新脑区。**
+<div align="center">
 
-核心思路是运行时动态增加 FFN 维度（最多扩展至 7B 参数量级），通过完美梯度锁冻结旧参数，让新知识只写入新长出的神经元，从而实现无回放的持续预训练。
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/) [![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-orange)](https://pytorch.org/) [![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
 
----
+[![GitHub issues](https://img.shields.io/github/issues/jack66g/Growable-LLM)](https://github.com/jack66g/Growable-LLM/issues) [![GitHub stars](https://img.shields.io/github/stars/jack66g/Growable-LLM)](https://github.com/jack66g/Growable-LLM)
 
-## 核心特性
+</div>
 
-- **动态扩容（Dynamic Expansion）**：运行时物理增加 FFN 神经元维度。新突触零初始化接入，前向输出不变，梯度从第一次 backward 开始正常流动。
-- **完美梯度锁（Perfect Gradient Lock）**：通过 PyTorch register_hook 机制，精准冻结基座旧脑区的梯度，确保每次特训只影响新长出的神经元，彻底隔绝灾难性遗忘。
-- **碎片整理（Defrag Scheme B）**：不对称解锁机制——临时解锁顶层 Attention 模块，以极低学习率回放少量隐藏状态，实现新旧知识融合而不覆盖旧表示。
-- **即插即用基座**：支持从 HuggingFace 提取 Qwen1.5-0.5B / SmolLM2-360M 等模型权重，无缝映射到 GrowableLLM 架构。
+<p align="center"><em>Dynamic orthogonal synaptic expansion for replay-free continual pre-training of LLMs.</em></p>
 
 ---
 
-## 与 PNN 的关系
+## Overview
 
-GrowableLLM 的设计思想深受 **Progressive Neural Networks (PNN)** 启发，但在实现路径上有本质差异：
+Traditional LLMs suffer from catastrophic forgetting when learning new domains. GrowableLLM takes a different path: **instead of overwriting, we dynamically expand model capacity.**
 
-| 维度 | PNN | GrowableLLM |
-|------|-----|-------------|
-| **扩容单位** | 每学一个新任务，新增一整个独立的网络"列"（column） | 每学一个新领域，在每层 FFN 内部增量增加 hidden 维度 |
-| **参数增长** | 参数量随任务数线性倍增（每列 ~0.5B，2 个任务即翻倍） | 参数量随领域数微增（每领域 ~10M，粒度 128~256 dim） |
-| **跨任务交互** | 旧列通过 lateral connection 向新列提供特征 | 新旧知识共享同一网络实体，通过神经元年龄/梯度锁物理隔离 |
-| **推理成本** | 所有列需同时参与推理，延迟随任务数线性增长 | 推理时网络规模不变，物理路由可选择性"断电"旧脑区 |
-| **核心机制** | lateral connection + 冻结旧列 | 正交突触扩展 + 完美梯度锁 + Defrag 碎片整理 |
-
-简言之，**PNN 是横向"叠层"——加整列；GrowableLLM 是纵向"生长"——扩单层。** 前者适合任务边界清晰的场景，后者更贴近生物大脑的渐进式学习，在 LLM 的连续预训练场景下参数效率更高。
+The core idea is to dynamically expand the FFN dimensions at runtime (up to ~7B parameters), using exact gradient locking to freeze old parameters so that new knowledge is written exclusively into newly grown hidden units, enabling replay-free continual pre-training.
 
 ---
 
-## 快速开始
+## Preliminary Results
 
-### 环境要求
+> [!NOTE]
+> **Compute Constraint**: The following evaluation framework is planned. Full benchmarks require 24GB+ GPU. GPU support welcome (see bottom).
+
+### Evaluation Metrics
+
+| Metric | Full Name | Target | Status |
+|--------|-----------|--------|--------|
+| BWT ↓ | Backward Transfer | Performance degradation on old tasks | Pending |
+| FWT ↑ | Forward Transfer | Learning efficiency on new tasks | Pending |
+| Forgetting Rate ↓ | Catastrophic Forgetting | Percentage of old knowledge lost | Pending |
+| PPL (WikiText-2) | Perplexity | Language modeling capability | Pending |
+| GSM8K ↑ | Grade School Math | Mathematical reasoning | Pending |
+
+---
+
+## Core Features
+
+- **Dynamic Expansion**: Dynamically increase FFN hidden unit dimensions at runtime. New weights are randomly initialized (Kaiming uniform). Forward output remains unchanged since new dimensions are not yet active. Gradients flow normally from the first backward pass.
+- **Exact Gradient Lock**: PyTorch `register_hook` mechanism precisely freezes gradients for existing parameter subspaces. Each training session affects only newly grown hidden units, effectively preventing catastrophic forgetting.
+- **Parameter Alignment (Scheme B)**: Asymmetric unlocking — temporarily unlocks the top 6 attention layers and final RMSNorm, then fine-tunes with a very low learning rate (1e-5) on cached token data from the replay buffer, allowing new hidden units to align with existing attention distributions.
+- **Plug-and-Play Base Models**: Supports weight extraction from HuggingFace (Qwen1.5-0.5B / SmolLM2-360M) and direct mapping to the GrowableLLM architecture.
+
+---
+
+## Relationship with PNN
+
+GrowableLLM is inspired by **Progressive Neural Networks (PNN)**, but differs fundamentally:
+
+| Dimension | PNN | GrowableLLM |
+|-----------|-----|-------------|
+| **Expansion Unit** | Adds a full independent network "column" per task | Incrementally increases hidden dimension within each FFN layer per domain |
+| **Parameter Growth** | Linearly doubles with task count (~0.5B per column) | Grows incrementally per domain (~10M per domain, 128–256 dim granularity) |
+| **Cross-Task Interaction** | Old columns provide features via lateral connections | Old and new knowledge share the same network entity, isolated via gradient masking |
+| **Inference Cost** | All columns participate, latency grows linearly | Network size unchanged at inference; old parameter subspaces can be selectively disabled |
+| **Compute Efficiency** | FLOPs grow linearly with task count | FLOPs grow only from new dimensions (new hidden units participate in forward pass), no extra column overhead |
+| **Core Mechanism** | Lateral connections + frozen old columns | Orthogonal synaptic expansion + exact gradient lock + Parameter Alignment |
+
+In short: **PNN expands across columns; GrowableLLM expands within layers.** The latter is closer to incremental representation learning and more parameter-efficient for continuous pre-training.
+
+---
+
+## Quick Start
+
+### Requirements
 
 - Python 3.8+
-- CUDA 11.7+（推荐）
+- PyTorch >= 2.1.0
+- CUDA 12.1 (recommended)
+- Transformers >= 4.37.0
 
-### 安装
+### Installation
 
 ```bash
 git clone https://github.com/jack66g/Growable-LLM.git
@@ -52,23 +86,18 @@ cd Growable-LLM
 pip install -r Experiment_Replication/requirements.txt
 ```
 
-### 最小运行示例（模型自测试）
-
-```bash
-python models.py
-```
-
-该命令会执行模型定义中的 `__main__` 自测试：构建 GrowableLLM → 前向传播 → 动态扩容 → 梯度锁验证 → 碎片整理 → 文本生成 → 检查点保存/加载。
-
 ---
 
-## 项目结构
+## Project Structure
+
+<details>
+<summary>Click to expand project structure</summary>
 
 ```
 Growable-LLM/
-├── models.py                     # 核心模型定义（GrowableLLM, DynamicSwiGLU）
-├── stats.py                      # CSV 统计分析工具
-├── outputs/                      # 实验输出统一目录
+├── models.py                     # Core model definition (GrowableLLM, DynamicSwiGLU)
+├── stats.py                      # CSV statistics utility
+├── outputs/                      # Unified experiment output directory
 │   ├── catastrophic_forgetting/
 │   ├── continual_benchmark/
 │   ├── cross_interference/
@@ -78,81 +107,84 @@ Growable-LLM/
 │   ├── knowledge_localization/
 │   ├── neural_age/
 │   └── scaling_law/
-├── Experiment/                   # 8 个消融实验与基准测试
-│   ├── Ablation.py               # 神经年龄消融
-│   ├── Forgetting.py             # 灾难性遗忘压力测试
-│   ├── Localization.py           # 知识定位基准
-│   ├── Matrix.py                 # 交叉干扰测试（10 领域）
-│   ├── Performance.py            # 扩容效率基准
-│   ├── Scaling_Law.py            # Scaling Law 拟合
-│   ├── benchmark_fusion.py       # Defrag 必要性对比
-│   ├── hook.py                   # Hook Lock A/B 测试
-│   ├── memory_test.py            # 持续学习基准（BWT/FWT）
-│   └── discarded/                # 已归档实验脚本
-├── Experiment_Replication/       # Qwen1.5-0.5B 复现流水线
-│   ├── convert_qwen_to_growable.py   # 权重提取与转换
-│   ├── train_chat_expert.py          # 阶段一：聊天脑区训练
-│   ├── train_med_expert.py           # 阶段二：医学脑区训练 + Defrag
-│   ├── test_chat_expert.py           # 聊天人格测试终端
-│   └── test_med_expert.py            # 双人格热切换测试终端
-├── Finalized_Test/
-│   ├── extract_weights.py
-│   ├── download_datasets.py
-│   ├── train_pipeline.py
-│   ├── test_baseline.py
-│   ├── test_master.py
-│   └── run_benchmark.py
+├── Experiment/                   # 8 ablation experiments and benchmarks
+│   ├── Ablation.py               # Neural age ablation
+│   ├── Forgetting.py             # Catastrophic forgetting stress test
+│   ├── Localization.py           # Knowledge localization
+│   ├── Matrix.py                 # Cross-interference test (10 domains)
+│   ├── Performance.py            # Expansion efficiency benchmark
+│   ├── Scaling_Law.py            # Scaling law fitting
+│   ├── benchmark_fusion.py       # Defrag necessity comparison
+│   ├── hook.py                   # Hook Lock A/B test
+│   ├── memory_test.py            # Continual learning benchmark (BWT/FWT)
+│   └── discarded/                # Archived experiment scripts
+├── Experiment_Replication/       # Qwen1.5-0.5B replication pipeline
+│   ├── convert_qwen_to_growable.py   # Weight extraction and conversion
+│   ├── train_chat_expert.py          # Phase 1: Chat role (Social QA) training
+│   ├── train_med_expert.py           # Phase 2: Medical role (Medical QA) training + Parameter Alignment
+│   ├── test_chat_expert.py           # Chat role test terminal
+│   └── test_med_expert.py            # Dual-role hot-switch test terminal
+├── Finalized_Test/              # SmolLM2-360M standardized evaluation pipeline
+│   ├── config.json                   # Unified config (hardware configuration, training params, paths)
+│   ├── extract_weights.py            # Base weight extraction and conversion
+│   ├── download_datasets.py          # Training data download
+│   ├── train_pipeline.py             # Two-phase expansion training + Parameter Alignment
+│   ├── test_baseline.py              # Baseline model interactive test
+│   ├── test_master.py                # Expanded model interactive test
+│   └── run_benchmark.py              # WikiText-2 PPL + GSM8K evaluation
 ```
+</details>
 
 ---
 
-## 使用指南
+## Tech Stack
 
-### 实验复现（Qwen1.5-0.5B）
-
-三步复现从基座提取到双领域专家训练的完整流程：
-
-```bash
-cd Experiment_Replication
-
-# 步骤 1：提取 Qwen1.5-0.5B 权重
-python convert_qwen_to_growable.py
-# → 输出：growable_qwen_base.pth
-
-# 步骤 2：训练高情商对话脑区（扩容 256 维）
-python train_chat_expert.py
-# → 输出：growable_chat_expert_epoch3.pth
-
-# 步骤 3：训练老中医脑区（扩容 128 维 + Defrag 融合）
-python train_med_expert.py
-# → 输出：growable_med_expert_epoch3.pth
-
-# 步骤 4：双人格热切换测试
-python test_med_expert.py
-# → 控制台输入 /chat 或 /med 切换人格
-```
----
-
-## 技术栈
-
-| 组件 | 技术 |
-|------|------|
-| 深度学习框架 | PyTorch |
-| 模型架构 | SwiGLU FFN + RoPE + GQA Attention |
-| 动态扩容 | 自定义 DynamicSwiGLU.expand() |
-| 梯度隔离 | PyTorch register_hook |
-| 基座模型 | Qwen1.5-0.5B / SmolLM2-360M-Instruct |
-| 依赖管理 | pip / requirements.txt |
+| Component | Technology |
+|-----------|------------|
+| Deep Learning Framework | PyTorch |
+| Model Architecture | SwiGLU FFN + RoPE + GQA Attention |
+| Dynamic Expansion | Custom DynamicSwiGLU.expand() |
+| Gradient Isolation | PyTorch register_hook |
+| Base Models | Qwen1.5-0.5B / SmolLM2-360M-Instruct |
+| Dependency Management | pip / requirements.txt |
 
 ---
 
-## 相关项目
+## Related Projects
 
-- [Qwen1.5](https://huggingface.co/Qwen/Qwen1.5-0.5B) — 基座模型
+- [Qwen1.5-0.5B] — Base model
+- [SmolLM2-360M-Instruct] — Base model
 
 ---
 
+## Seeking GPU Compute Support
 
-## 联系
+GrowableLLM's full training and evaluation requires 24GB+ VRAM GPUs (e.g., RTX 3090/4090). Due to compute constraints, large-scale experiments have not yet been fully conducted. If you have spare GPU resources and would like to support this project, please contact:
 
-有 Bug 或建议欢迎联系：**18200793117@163.com**
+**tbnl_zldyd@outlook.com**
+
+Your support will be used for:
+- Expansion experiments on larger base models (covering 0.5B → 7B range)
+- Continual pre-training benchmarks across more domains
+- Iterative optimization of Parameter Alignment strategies
+
+---
+
+## Contact
+
+Bug reports and suggestions: **18200793117@163.com** | **tbnl_zldyd@outlook.com**
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=jack66g/Growable-LLM&type=Date)](https://star-history.com/#jack66g/Growable-LLM&Date)
+
+---
+
+## License
+
+This project is licensed under Apache License, Version 2.0.
+
+[Qwen1.5-0.5B]: https://huggingface.co/Qwen/Qwen1.5-0.5B
+[SmolLM2-360M-Instruct]: https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct
