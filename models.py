@@ -345,9 +345,9 @@ class GrowableLLM(nn.Module):
         model_param_ids = set(id(p) for p in self.parameters() if p.requires_grad)
 
         # 🔧 清理 optimizer.state 中已不存在的参数（防止多次扩容后状态字典膨胀）
-        stale_ids = [pid for pid in optimizer.state.keys() if pid not in model_param_ids]
-        for pid in stale_ids:
-            del optimizer.state[pid]
+        stale_params = [p for p in optimizer.state.keys() if id(p) not in model_param_ids]
+        for p in stale_params:
+            del optimizer.state[p]
 
         # 清理 param_groups 中的过期参数引用
         for group in optimizer.param_groups:
