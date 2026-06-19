@@ -7,6 +7,7 @@ data/
 
 # Large model weight files
 *.pt
+*.pth
 
 # Downloaded training datasets
 growable_llm_data/
