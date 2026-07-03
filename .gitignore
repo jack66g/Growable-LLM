@@ -12,6 +12,11 @@ data/
 # Downloaded training datasets
 growable_llm_data/
 
+# Data audit & cleaning artifacts
+*.audit.json
+*_cleaned.jsonl
+*_dropped.jsonl
+
 # Python cache
 __pycache__/
 *.pyc

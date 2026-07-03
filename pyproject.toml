@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "GrowableLLM — Replay-free continual pretraining via orthogonal synaptic expansion"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "torch>=2.5.1",
+    "torch>=2.7.0",
     "transformers>=5.8.1",
     "datasets>=4.8",
     "tqdm>=4.67",
@@ -29,14 +29,14 @@ benchmark = [
 index-strategy = "unsafe-best-match"
 
 [[tool.uv.index]]
-name = "pytorch-cu121"
-url = "https://download.pytorch.org/whl/cu121"
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.uv.sources]
-torch = [{ index = "pytorch-cu121" }]
-torchaudio = [{ index = "pytorch-cu121" }]
-torchvision = [{ index = "pytorch-cu121" }]
+torch = [{ index = "pytorch-cu128" }]
+torchaudio = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
 
 [build-system]
 requires = ["hatchling"]
