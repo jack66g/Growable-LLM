@@ -1,10 +1,20 @@
 import os
+import sys
 import json
 import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 from datasets import load_from_disk
 from tqdm import tqdm
+
+# Windows GBK 兼容：确保 stdout 支持 UTF-8
+os.environ["PYTHONIOENCODING"] = "utf-8"
+if hasattr(sys.stdout, "buffer"):
+    sys.stdout = open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)
+
+# 确保能导入根目录的 models.py
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)
 
 # 导入我们手写的完美架构
 from models import GrowableLLM, ModelConfig
@@ -22,6 +32,10 @@ hw_cfg = full_config["hardware"]["profiles"][full_config["hardware"]["profile"]]
 tk_cfg = full_config["tokenizer"]
 paths = full_config["paths"]
 
+# 将配置中的相对路径解析为相对于项目根目录的绝对路径
+for key in ("base_weights", "master_weights", "magicoder_data", "evolcode_data"):
+    paths[key] = os.path.join(PROJECT_ROOT, paths[key])
+
 DEVICE = "cuda"
 BATCH_SIZE = hw_cfg["batch_size"]
 SEQ_LEN = hw_cfg["seq_len"]
@@ -35,7 +49,7 @@ ACCUMULATION_STEPS = hw_cfg["gradient_accumulation_steps"]
 # 数据处理与 Tokenizer
 # ==========================================
 os.environ["HF_ENDPOINT"] = tk_cfg["hf_endpoint"]
-tokenizer = AutoTokenizer.from_pretrained(tk_cfg["model_id"])
+tokenizer = AutoTokenizer.from_pretrained(tk_cfg["model_id"], local_files_only=True)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -63,7 +77,7 @@ def collate_fn(batch):
 
     # 遮蔽 (Mask) 掉 Padding 部分，不参与 Loss 计算
     labels[encoded["attention_mask"] == 0] = -100
-    return input_ids.to(DEVICE), labels.to(DEVICE)
+    return input_ids, labels  # CPU 张量，由训练循环移到 GPU
 
 # ==========================================
 # 训练引擎
@@ -72,18 +86,17 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
     print(f"\n{'='*60}")
     print(f"🔥 STARTING PHASE: {phase_name}")
     print(f"{'='*60}")
-    
+
     # 1. 执行正交扩容 (自动分配新矩阵并锁死旧知识)
     model.expand_model(extra_dim=extra_dim)
-    
-    # 2. 准备大火力 DataLoader
+
+    # 2. 准备 DataLoader（num_workers=0 避免 CUDA 多进程传输瓶颈）
     dataloader = DataLoader(
-        dataset, 
-        batch_size=BATCH_SIZE, 
-        shuffle=True, 
+        dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
         collate_fn=collate_fn,
-        num_workers=NUM_WORKERS,
-        pin_memory=False  # collate_fn 已返回 GPU 张量，pin_memory 只支持 CPU 张量
+        num_workers=0,
     )
     
     # 3. 配置优化器 (此时 require_grad=True 的只有新扩容的矩阵部分)
@@ -100,6 +113,8 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
         optimizer.zero_grad()
 
         for step, (input_ids, labels) in enumerate(pbar):
+            # CPU->GPU 传输（不在 collate_fn 中做，以兼容 num_workers)
+            input_ids, labels = input_ids.to(DEVICE, non_blocking=True), labels.to(DEVICE, non_blocking=True)
             # 开启 AMP Bfloat16 大幅加速计算
             with torch.autocast(device_type=DEVICE, dtype=torch.bfloat16):
                 logits, loss = model(input_ids, labels=labels)
@@ -126,7 +141,7 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
     # 5. 触发 V3 Attention Defrag 协议 (使用一小批数据对齐 Attention)
     # 取一个 Batch 的数据进行特征融合
     fusion_input_ids, _ = next(iter(dataloader))
-    model.defrag(optimizer, fusion_data=fusion_input_ids)
+    model.defrag(optimizer, fusion_data=fusion_input_ids.to(DEVICE))
     
     print(f"🔒 {phase_name} 阶段的知识已完美固化！")
 
