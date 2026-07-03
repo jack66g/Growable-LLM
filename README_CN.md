@@ -1,18 +1,12 @@
 <h1 align="center">GrowableLLM</h1>
 
-<div align="center">
+<p align="center">
+<a href="README.md">English</a> | <a href="README_CN.md">简体中文</a>
+</p>
 
-[English](README.md) | [简体中文](README_CN.md)
+<p align="center"><a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python"></a> <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-2.5%2B-orange" alt="PyTorch"></a> <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/badge/uv-managed-purple" alt="uv"></a></p>
 
-</div>
-
-<div align="center">
-
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/) [![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-orange)](https://pytorch.org/) [![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
-
-[![GitHub issues](https://img.shields.io/github/issues/jack66g/Growable-LLM)](https://github.com/jack66g/Growable-LLM/issues) [![GitHub stars](https://img.shields.io/github/stars/jack66g/Growable-LLM)](https://github.com/jack66g/Growable-LLM)
-
-</div>
+<p align="center"><a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a> <a href="https://github.com/jack66g/Growable-LLM/issues"><img src="https://img.shields.io/github/issues/jack66g/Growable-LLM" alt="GitHub issues"></a> <a href="https://github.com/jack66g/Growable-LLM"><img src="https://img.shields.io/github/stars/jack66g/Growable-LLM" alt="GitHub stars"></a></p>
 
 <p align="center"><em>通过正交突触扩展，让 LLM 在不回放旧数据的前提下动态扩展隐藏单元，持续学习新领域知识。</em></p>
 
@@ -73,17 +67,18 @@ GrowableLLM 的设计思想深受 **Progressive Neural Networks (PNN)** 启发�
 
 ### 环境要求
 
-- Python 3.8+
-- PyTorch >= 2.1.0
+- Python 3.10+
+- PyTorch >= 2.5.0
 - CUDA 12.1（推荐）
-- Transformers >= 4.37.0
+- [uv](https://docs.astral.sh/uv/)（包管理器）
 
 ### 安装
 
 ```bash
 git clone https://github.com/jack66g/Growable-LLM.git
 cd Growable-LLM
-pip install -r Experiment_Replication/requirements.txt
+uv sync                                    # 核心依赖
+uv sync --extra experiment --extra benchmark  # 全部依赖（含实验 + 基准测试）
 ```
 
 
@@ -147,7 +142,7 @@ Growable-LLM/
 | 动态扩容 | 自定义 DynamicSwiGLU.expand() |
 | 梯度隔离 | PyTorch register_hook |
 | 基座模型 | Qwen1.5-0.5B / SmolLM2-360M-Instruct |
-| 依赖管理 | pip / requirements.txt |
+| 依赖管理 | uv / pyproject.toml |
 
 ---
 

@@ -1,18 +1,12 @@
 <h1 align="center">GrowableLLM</h1>
 
-<div align="center">
+<p align="center">
+<a href="README.md">English</a> | <a href="README_CN.md">简体中文</a>
+</p>
 
-[English](README.md) | [简体中文](README_CN.md)
+<p align="center"><a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python"></a> <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/PyTorch-2.5%2B-orange" alt="PyTorch"></a> <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/badge/uv-managed-purple" alt="uv"></a></p>
 
-</div>
-
-<div align="center">
-
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/) [![PyTorch](https://img.shields.io/badge/PyTorch-2.1%2B-orange)](https://pytorch.org/) [![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
-
-[![GitHub issues](https://img.shields.io/github/issues/jack66g/Growable-LLM)](https://github.com/jack66g/Growable-LLM/issues) [![GitHub stars](https://img.shields.io/github/stars/jack66g/Growable-LLM)](https://github.com/jack66g/Growable-LLM)
-
-</div>
+<p align="center"><a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License"></a> <a href="https://github.com/jack66g/Growable-LLM/issues"><img src="https://img.shields.io/github/issues/jack66g/Growable-LLM" alt="GitHub issues"></a> <a href="https://github.com/jack66g/Growable-LLM"><img src="https://img.shields.io/github/stars/jack66g/Growable-LLM" alt="GitHub stars"></a></p>
 
 <p align="center"><em>Dynamic orthogonal synaptic expansion for replay-free continual pre-training of LLMs.</em></p>
 
@@ -33,13 +27,13 @@ The core idea is to dynamically expand the FFN dimensions at runtime (up to ~7B 
 
 ### Evaluation Metrics
 
-| Metric | Full Name | Target | Status |
-|--------|-----------|--------|--------|
-| BWT ↓ | Backward Transfer | Performance degradation on old tasks | Pending |
-| FWT ↑ | Forward Transfer | Learning efficiency on new tasks | Pending |
-| Forgetting Rate ↓ | Catastrophic Forgetting | Percentage of old knowledge lost | Pending |
-| PPL (WikiText-2) | Perplexity | Language modeling capability | Pending |
-| GSM8K ↑ | Grade School Math | Mathematical reasoning | Pending |
+| Metric             | Full Name               | Target                               | Status  |
+| ------------------ | ----------------------- | ------------------------------------ | ------- |
+| BWT ↓             | Backward Transfer       | Performance degradation on old tasks | Pending |
+| FWT ↑             | Forward Transfer        | Learning efficiency on new tasks     | Pending |
+| Forgetting Rate ↓ | Catastrophic Forgetting | Percentage of old knowledge lost     | Pending |
+| PPL (WikiText-2)   | Perplexity              | Language modeling capability         | Pending |
+| GSM8K ↑           | Grade School Math       | Mathematical reasoning               | Pending |
 
 ---
 
@@ -56,14 +50,14 @@ The core idea is to dynamically expand the FFN dimensions at runtime (up to ~7B 
 
 GrowableLLM is inspired by **Progressive Neural Networks (PNN)**, but differs fundamentally:
 
-| Dimension | PNN | GrowableLLM |
-|-----------|-----|-------------|
-| **Expansion Unit** | Adds a full independent network "column" per task | Incrementally increases hidden dimension within each FFN layer per domain |
-| **Parameter Growth** | Linearly doubles with task count (~0.5B per column) | Grows incrementally per domain (~10M per domain, 128–256 dim granularity) |
-| **Cross-Task Interaction** | Old columns provide features via lateral connections | Old and new knowledge share the same network entity, isolated via gradient masking |
-| **Inference Cost** | All columns participate, latency grows linearly | Network size unchanged at inference; old parameter subspaces can be selectively disabled |
-| **Compute Efficiency** | FLOPs grow linearly with task count | FLOPs grow only from new dimensions (new hidden units participate in forward pass), no extra column overhead |
-| **Core Mechanism** | Lateral connections + frozen old columns | Orthogonal synaptic expansion + exact gradient lock + Parameter Alignment |
+| Dimension                        | PNN                                                  | GrowableLLM                                                                                                  |
+| -------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Expansion Unit**         | Adds a full independent network "column" per task    | Incrementally increases hidden dimension within each FFN layer per domain                                    |
+| **Parameter Growth**       | Linearly doubles with task count (~0.5B per column)  | Grows incrementally per domain (~10M per domain, 128–256 dim granularity)                                   |
+| **Cross-Task Interaction** | Old columns provide features via lateral connections | Old and new knowledge share the same network entity, isolated via gradient masking                           |
+| **Inference Cost**         | All columns participate, latency grows linearly      | Network size unchanged at inference; old parameter subspaces can be selectively disabled                     |
+| **Compute Efficiency**     | FLOPs grow linearly with task count                  | FLOPs grow only from new dimensions (new hidden units participate in forward pass), no extra column overhead |
+| **Core Mechanism**         | Lateral connections + frozen old columns             | Orthogonal synaptic expansion + exact gradient lock + Parameter Alignment                                    |
 
 In short: **PNN expands across columns; GrowableLLM expands within layers.** The latter is closer to incremental representation learning and more parameter-efficient for continuous pre-training.
 
@@ -73,17 +67,18 @@ In short: **PNN expands across columns; GrowableLLM expands within layers.** The
 
 ### Requirements
 
-- Python 3.8+
-- PyTorch >= 2.1.0
+- Python 3.10+
+- PyTorch >= 2.5.0
 - CUDA 12.1 (recommended)
-- Transformers >= 4.37.0
+- [uv](https://docs.astral.sh/uv/) (package manager)
 
 ### Installation
 
 ```bash
 git clone https://github.com/jack66g/Growable-LLM.git
 cd Growable-LLM
-pip install -r Experiment_Replication/requirements.txt
+uv sync                                    # Core dependencies
+uv sync --extra experiment --extra benchmark  # Full dependencies (experiments + benchmarks)
 ```
 
 ---
@@ -133,27 +128,28 @@ Growable-LLM/
 │   ├── test_master.py                # Expanded model interactive test
 │   └── run_benchmark.py              # WikiText-2 PPL + GSM8K evaluation
 ```
+
 </details>
 
 ---
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| Deep Learning Framework | PyTorch |
-| Model Architecture | SwiGLU FFN + RoPE + GQA Attention |
-| Dynamic Expansion | Custom DynamicSwiGLU.expand() |
-| Gradient Isolation | PyTorch register_hook |
-| Base Models | Qwen1.5-0.5B / SmolLM2-360M-Instruct |
-| Dependency Management | pip / requirements.txt |
+| Component               | Technology                           |
+| ----------------------- | ------------------------------------ |
+| Deep Learning Framework | PyTorch                              |
+| Model Architecture      | SwiGLU FFN + RoPE + GQA Attention    |
+| Dynamic Expansion       | Custom DynamicSwiGLU.expand()        |
+| Gradient Isolation      | PyTorch register_hook                |
+| Base Models             | Qwen1.5-0.5B / SmolLM2-360M-Instruct |
+| Dependency Management   | uv / pyproject.toml                  |
 
 ---
 
 ## Related Projects
 
-- [Qwen1.5-0.5B] — Base model
-- [SmolLM2-360M-Instruct] — Base model
+- [Qwen1.5-0.5B][Qwen1.5-0.5B] — Base model
+- [SmolLM2-360M-Instruct][SmolLM2-360M-Instruct] — Base model
 
 ---
 
@@ -164,6 +160,7 @@ GrowableLLM's full training and evaluation requires 24GB+ VRAM GPUs (e.g., RTX 3
 **tbnl_zldyd@outlook.com**
 
 Your support will be used for:
+
 - Expansion experiments on larger base models (covering 0.5B → 7B range)
 - Continual pre-training benchmarks across more domains
 - Iterative optimization of Parameter Alignment strategies

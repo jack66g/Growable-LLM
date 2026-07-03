@@ -1,0 +1,58 @@
+[project]
+name = "growable-llm"
+version = "0.1.0"
+description = "GrowableLLM — Replay-free continual pretraining via orthogonal synaptic expansion"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "torch>=2.5.1",
+    "transformers>=5.8.1",
+    "datasets>=4.8",
+    "tqdm>=4.67",
+    "safetensors>=0.7",
+]
+
+[project.optional-dependencies]
+experiment = [
+    "numpy>=2.2",
+    "pandas>=2.3",
+    "matplotlib>=3.10",
+    "seaborn>=0.13",
+    "scipy>=1.15",
+    "scikit-learn>=1.7",
+]
+benchmark = [
+    "lm-eval>=0.4",
+    "accelerate>=1.13",
+]
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu121" }]
+torchaudio = [{ index = "pytorch-cu121" }]
+torchvision = [{ index = "pytorch-cu121" }]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.hatch.build]
+exclude = [
+    "venv/",
+    ".venv/",
+    "growable_llm_data/",
+    "*.pth",
+    "*.pt",
+    "Experiment_Replication/",
+    "Finalized_Test/",
+    "Experiment/",
+]
