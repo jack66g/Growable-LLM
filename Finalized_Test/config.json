@@ -36,7 +36,13 @@
   "training": {
     "learning_rate": 2e-4,
     "expand_dim": 256,
-    "epochs_per_phase": 1
+    "epochs_per_phase": 1,
+    "max_samples_per_phase": {
+      "8gb": 15000,
+      "16gb": 15000,
+      "24gb": 20000,
+      "96gb": 20000
+    }
   },
 
   "inference": {

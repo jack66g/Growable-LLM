@@ -44,6 +44,7 @@ EXPAND_DIM = train_cfg["expand_dim"]
 EPOCHS_PER_PHASE = train_cfg["epochs_per_phase"]
 NUM_WORKERS = hw_cfg["num_workers"]
 ACCUMULATION_STEPS = hw_cfg["gradient_accumulation_steps"]
+MAX_SAMPLES = train_cfg["max_samples_per_phase"][full_config["hardware"]["profile"]]
 
 # ==========================================
 # 数据处理与 Tokenizer
@@ -91,6 +92,15 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
     model.expand_model(extra_dim=extra_dim)
 
     # 2. 准备 DataLoader（num_workers=0 避免 CUDA 多进程传输瓶颈）
+    # 限制样本数以控制训练时长
+    total_rows = len(dataset)
+    n_samples = min(MAX_SAMPLES, total_rows)
+    if n_samples < total_rows:
+        dataset = dataset.shuffle(seed=42).select(range(n_samples))
+        print(f"  Subsampled to {n_samples} rows (from {total_rows} total) for this hardware profile")
+    else:
+        print(f"  Using full dataset: {total_rows} rows")
+
     dataloader = DataLoader(
         dataset,
         batch_size=BATCH_SIZE,
