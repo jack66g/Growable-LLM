@@ -16,8 +16,8 @@ if hasattr(sys.stdout, "buffer"):
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-# 导入我们手写的完美架构
-from models import GrowableLLM, ModelConfig
+# 导入 GrowableLLM（HF 骨架版）
+from models_hf import GrowableLlamaForCausalLM
 
 # ==========================================
 # 从统一配置文件读取
@@ -161,16 +161,11 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
 if __name__ == "__main__":
     # 开启 CUDNN 基准测试，让 GPU 自动寻找最快卷积算法
     torch.backends.cudnn.benchmark = True
+    torch.set_float32_matmul_precision('high')
 
-    # 1. 从配置文件读取模型架构
-    config = ModelConfig(**model_cfg)
-
-    model = GrowableLLM(config).to(DEVICE)
-
-    # 2. 载入原始基座权重
-    print(f"⏳ 载入基座权重: {paths['base_weights']}")
-    model.load_state_dict(torch.load(paths["base_weights"]))
-    print("✅ 基座载入完毕！")
+    # 1. 从 HF 加载预训练模型（自动切换 DynamicLlamaMLP）
+    model = GrowableLlamaForCausalLM.from_pretrained(tk_cfg["model_id"]).to(DEVICE)
+    print(f"✅ 基座载入完毕！参数: {sum(p.numel() for p in model.parameters())/1e6:.1f}M")
 
     # 3. 载入本地数据集
     ds_logic = load_from_disk(paths["magicoder_data"])
