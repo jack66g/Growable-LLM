@@ -20,23 +20,6 @@
 
 ---
 
-## 初步结果
-
-> [!NOTE]
-> **算力受限声明**：以下为预期评测框架，完整 Benchmark 需 24GB+ GPU。欢迎提供算力支持（见文末）。
-
-### 评测维度
-
-| 指标 | 全称 | 测量目标 | 状态 |
-|------|------|---------|------|
-| BWT ↓ | Backward Transfer | 旧任务性能退化程度 | 待测 |
-| FWT ↑ | Forward Transfer | 新任务学习效率 | 待测 |
-| Forgetting Rate ↓ | Catastrophic Forgetting | 旧知识遗忘百分比 | 待测 |
-| PPL (WikiText-2) | Perplexity | 语言建模能力 | 待测 |
-| GSM8K ↑ | Grade School Math | 数学推理 | 待测 |
-
----
-
 ## 核心特性
 
 - **动态扩容（Dynamic Expansion）**：运行时动态增加 FFN 隐藏单元维度。新权重随机初始化（Kaiming uniform），前向输出因新增维度未参与计算而保持不变，梯度从第一次 backward 开始正常流动。
@@ -150,19 +133,6 @@ Growable-LLM/
 
 - [Qwen1.5-0.5B] — 基座模型
 - [SmolLM2-360M-Instruct] — 基座模型
-
----
-
-## 寻求 GPU 算力支持
-
-GrowableLLM 的完整训练和评测需要 24GB+ 显存的 GPU（如 RTX 3090/4090），目前受限于算力，大规模实验尚未充分开展。如果您有闲置 GPU 算力并愿意支持本项目，欢迎联系：
-
-**tbnl_zldyd@outlook.com**
-
-您的支持将用于：
-- 更大规模基座模型的扩容实验（覆盖 0.5B → 7B 全量程）
-- 更多领域的持续预训练 benchmark
-- 参数对齐策略的迭代优化
 
 ---
 

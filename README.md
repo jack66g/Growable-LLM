@@ -20,23 +20,6 @@ The core idea is to dynamically expand the FFN dimensions at runtime (up to ~7B 
 
 ---
 
-## Preliminary Results
-
-> [!NOTE]
-> **Compute Constraint**: The following evaluation framework is planned. Full benchmarks require 24GB+ GPU. GPU support welcome (see bottom).
-
-### Evaluation Metrics
-
-| Metric             | Full Name               | Target                               | Status  |
-| ------------------ | ----------------------- | ------------------------------------ | ------- |
-| BWT ↓             | Backward Transfer       | Performance degradation on old tasks | Pending |
-| FWT ↑             | Forward Transfer        | Learning efficiency on new tasks     | Pending |
-| Forgetting Rate ↓ | Catastrophic Forgetting | Percentage of old knowledge lost     | Pending |
-| PPL (WikiText-2)   | Perplexity              | Language modeling capability         | Pending |
-| GSM8K ↑           | Grade School Math       | Mathematical reasoning               | Pending |
-
----
-
 ## Core Features
 
 - **Dynamic Expansion**: Dynamically increase FFN hidden unit dimensions at runtime. New weights are randomly initialized (Kaiming uniform). Forward output remains unchanged since new dimensions are not yet active. Gradients flow normally from the first backward pass.
@@ -150,20 +133,6 @@ Growable-LLM/
 
 - [Qwen1.5-0.5B][Qwen1.5-0.5B] — Base model
 - [SmolLM2-360M-Instruct][SmolLM2-360M-Instruct] — Base model
-
----
-
-## Seeking GPU Compute Support
-
-GrowableLLM's full training and evaluation requires 24GB+ VRAM GPUs (e.g., RTX 3090/4090). Due to compute constraints, large-scale experiments have not yet been fully conducted. If you have spare GPU resources and would like to support this project, please contact:
-
-**tbnl_zldyd@outlook.com**
-
-Your support will be used for:
-
-- Expansion experiments on larger base models (covering 0.5B → 7B range)
-- Continual pre-training benchmarks across more domains
-- Iterative optimization of Parameter Alignment strategies
 
 ---
 
