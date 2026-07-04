@@ -105,7 +105,7 @@ def run_training_phase(model, phase_name, dataset, extra_dim):
     
     # 4. 开始暴力训练 (使用 Bfloat16 混合精度，RTX 6000 的杀手锏)
     model.train()
-    scaler = torch.cuda.amp.GradScaler(enabled=False) # BF16 通常不需要 scaler，直接 autocast
+    scaler = torch.amp.GradScaler('cuda', enabled=False) # BF16 不需要 scaler，直接 autocast
     
     for epoch in range(EPOCHS_PER_PHASE):
         pbar = tqdm(dataloader, desc=f"{phase_name} Epoch {epoch+1}")
