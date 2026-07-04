@@ -11,8 +11,8 @@ from models import GrowableLLM, ModelConfig
 # =====================================================
 # [配置区]
 # =====================================================
-MED_DATA_PATH = "domain_2_medical.jsonl"
-CHAT_DATA_PATH = "daily_chat_clean.jsonl" # 🌟 用于提取回放锚点
+MED_DATA_PATH = "domain_2_medical_cleaned.jsonl"
+CHAT_DATA_PATH = "daily_chat_clean_cleaned.jsonl" # 🌟 用于提取回放锚点
 BASE_WEIGHT_PATH = "growable_chat_expert_epoch3.pth" # 挂载第一阶段的高情商大盘
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 

@@ -10,7 +10,7 @@ from models import GrowableLLM, ModelConfig
 # =====================================================
 # [配置区]
 # =====================================================
-CHAT_DATA_PATH = "daily_chat_clean.jsonl"
+CHAT_DATA_PATH = "daily_chat_clean_cleaned.jsonl"
 BASE_WEIGHT_PATH = "growable_qwen_base.pth" # 纯净基座
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
