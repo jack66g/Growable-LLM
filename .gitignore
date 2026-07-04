@@ -14,7 +14,6 @@ growable_llm_data/
 
 # Data audit & cleaning artifacts
 *.audit.json
-*_cleaned.jsonl
 *_dropped.jsonl
 
 # Python cache
