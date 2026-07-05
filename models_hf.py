@@ -1,18 +1,18 @@
 """
 GrowableLLM on HuggingFace backbone.
 
-Replaces the hand-written Transformer in models.py with HF LlamaForCausalLM,
-giving Flash Attention + torch.compile support while preserving the core
-expand / HookLock / defrag mechanisms.
+Replaces the hand-written Transformer in models.py with HF LlamaForCausalLM
+or Qwen2ForCausalLM, giving Flash Attention + torch.compile support while
+preserving the core expand / HookLock / defrag mechanisms.
 
 Usage:
-    from models_hf import GrowableLlamaForCausalLM, GrowableLlamaConfig
+    from models_hf import GrowableLlamaForCausalLM, GrowableQwen2ForCausalLM
 
-    # From config dict (compatible with config.json model block)
-    model = GrowableLlamaForCausalLM(config_dict)
-
-    # From pretrained HF model ID
+    # SmolLM2-360M (Llama architecture)
     model = GrowableLlamaForCausalLM.from_pretrained("HuggingFaceTB/SmolLM2-360M-Instruct")
+
+    # Qwen1.5-0.5B (Qwen2 architecture)
+    model = GrowableQwen2ForCausalLM.from_pretrained("Qwen/Qwen1.5-0.5B")
 
     # Same API as GrowableLLM:
     model.expand_model(extra_dim=256, optimizer=optimizer)
@@ -27,7 +27,9 @@ from functools import partial
 from typing import Optional, Union, Dict, Any
 
 from transformers import LlamaConfig, LlamaForCausalLM
+from transformers import Qwen2Config, Qwen2ForCausalLM
 from transformers.models.llama.modeling_llama import LlamaMLP
+from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 
 
 # ---------------------------------------------------------------------------
@@ -55,20 +57,36 @@ def _to_llama_config(cfg: dict) -> LlamaConfig:
 
 
 # ---------------------------------------------------------------------------
-# DynamicLlamaMLP — HF LlamaMLP with expand() and gradient-lock state
+# DynamicSwiGLUMLP — SwiGLU MLP with expand() and gradient-lock state
+# Works for both LlamaMLP and Qwen2MLP (identical gate/up/down structure)
 # ---------------------------------------------------------------------------
 
-class DynamicLlamaMLP(LlamaMLP):
-    """Same interface as LlamaMLP, but supports runtime dimension expansion.
+class DynamicSwiGLUMLP(nn.Module):
+    """SwiGLU MLP that supports runtime dimension expansion.
+
+    Compatible with both LlamaMLP and Qwen2MLP — they share the same
+    gate_proj / up_proj / down_proj structure with SiLU activation.
 
     After expand(), the old hidden units are frozen via HookLock (gradient hooks)
     while the new units receive gradients normally.
     """
 
     def __init__(self, config):
-        super().__init__(config)
+        super().__init__()
+        self.config = config
+        self.hidden_size = config.hidden_size
+        self.intermediate_size = config.intermediate_size
         self.current_dim = config.intermediate_size
         self.locked_dim = 0
+        bias = getattr(config, "mlp_bias", False)
+
+        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=bias)
+        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=bias)
+        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=bias)
+        self.act_fn = F.silu
+
+    def forward(self, x):
+        return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
 
     def expand(self, extra_dim: int = 256):
         """Grow FFN width by *extra_dim* units, preserving existing weights.
@@ -79,7 +97,7 @@ class DynamicLlamaMLP(LlamaMLP):
         new_dim = old_dim + extra_dim
         device = self.gate_proj.weight.device
         dtype = self.gate_proj.weight.dtype
-        bias = self.config.mlp_bias
+        bias = getattr(self.config, "mlp_bias", False)
 
         # ── gate_proj: [old_dim, hidden] → [new_dim, hidden] ──
         tmp_g = nn.Linear(self.hidden_size, new_dim, bias=bias).to(device, dtype)
@@ -99,7 +117,6 @@ class DynamicLlamaMLP(LlamaMLP):
         tmp_d = nn.Linear(new_dim, self.hidden_size, bias=bias).to(device, dtype)
         tmp_d.weight.data[:, :old_dim] = self.down_proj.weight.data
         if bias:
-            # down_proj bias is [hidden_size], shape unchanged
             tmp_d.bias.data = self.down_proj.bias.data
         self.down_proj = tmp_d
 
@@ -142,11 +159,11 @@ class GrowableLlamaForCausalLM(nn.Module):
     # ── internal helpers ──────────────────────────────────────────────
 
     def _replace_mlps(self):
-        """Replace each layer's LlamaMLP with a DynamicLlamaMLP, copying weights."""
+        """Replace each layer's LlamaMLP with a DynamicSwiGLUMLP, copying weights."""
         cfg = self.model.config
         for layer in self.model.model.layers:
             old_mlp = layer.mlp
-            new_mlp = DynamicLlamaMLP(cfg)
+            new_mlp = DynamicSwiGLUMLP(cfg)
             # Match the original model's dtype (typically bfloat16)
             new_mlp.to(old_mlp.gate_proj.weight.dtype)
             new_mlp.load_state_dict(old_mlp.state_dict())
@@ -320,6 +337,207 @@ class GrowableLlamaForCausalLM(nn.Module):
             self.sync_optimizer(optimizer)
 
     # ── generate (delegates to HF generate) ───────────────────────────
+
+    @torch.no_grad()
+    def generate(self, input_ids, **kwargs):
+        return self.model.generate(input_ids, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# GrowableQwen2ForCausalLM — same API, Qwen2-backed
+# ---------------------------------------------------------------------------
+
+class GrowableQwen2ForCausalLM(nn.Module):
+    """HF Qwen2ForCausalLM with GrowableLLM's expand / lock / defrag API.
+
+    Same interface as GrowableLlamaForCausalLM, but for Qwen2-family models
+    (Qwen1.5-0.5B, Qwen2-0.5B, etc.).
+    """
+
+    def __init__(self, config: Union[dict, Qwen2Config, Qwen2ForCausalLM]):
+        super().__init__()
+        if isinstance(config, Qwen2ForCausalLM):
+            self.model = config
+            self._replace_mlps()
+            self.hooks = []
+            return
+        llama_cfg = _to_llama_config(config) if isinstance(config, dict) else config
+        self.model = Qwen2ForCausalLM._from_config(llama_cfg)
+        self._replace_mlps()
+        self.hooks: list = []
+
+    @classmethod
+    def from_pretrained(cls, model_id: str, **kwargs):
+        """Load pretrained HF weights, then swap in DynamicSwiGLUMLP layers."""
+        hf_model = Qwen2ForCausalLM.from_pretrained(model_id, **kwargs)
+        return cls(hf_model)
+
+    # ── internal helpers ──────────────────────────────────────────────
+
+    def _replace_mlps(self):
+        """Replace each layer's Qwen2MLP with a DynamicSwiGLUMLP, copying weights."""
+        cfg = self.model.config
+        for layer in self.model.model.layers:
+            old_mlp = layer.mlp
+            new_mlp = DynamicSwiGLUMLP(cfg)
+            new_mlp.to(old_mlp.gate_proj.weight.dtype)
+            new_mlp.load_state_dict(old_mlp.state_dict())
+            layer.mlp = new_mlp
+
+    @property
+    def _layers(self):
+        return self.model.model.layers
+
+    # ── forward ───────────────────────────────────────────────────────
+
+    def forward(self, input_ids, labels=None, **kwargs):
+        outputs = self.model(input_ids=input_ids, labels=labels, **kwargs)
+        return outputs.logits, outputs.loss
+
+    # ── device / state_dict / train mode ──────────────────────────────
+
+    def to(self, device, *args, **kwargs):
+        self.model.to(device, *args, **kwargs)
+        return self
+
+    def state_dict(self, *args, **kwargs):
+        return self.model.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        return self.model.load_state_dict(state_dict, *args, **kwargs)
+
+    def train(self, mode=True):
+        self.model.train(mode)
+        return self
+
+    def eval(self):
+        self.model.eval()
+        return self
+
+    # ── [Core 1] expand_model ────────────────────────────────────────
+
+    def expand_model(self, extra_dim: int = 256, optimizer=None):
+        """Expand all FFN layers, freeze old dimensions, sync optimizer."""
+        for layer in self._layers:
+            layer.mlp.expand(extra_dim)
+        self.freeze_old_knowledge(global_lock=True)
+        if optimizer is not None:
+            self.sync_optimizer(optimizer)
+
+    # ── [Core 2] HookLock ────────────────────────────────────────────
+
+    def freeze_old_knowledge(self, global_lock: bool = False):
+        """Register gradient hooks on all DynamicSwiGLUMLPs with locked_dim > 0."""
+        for h in self.hooks:
+            h.remove()
+        self.hooks.clear()
+
+        if global_lock:
+            self.model.model.embed_tokens.weight.requires_grad = False
+            self.model.model.norm.weight.requires_grad = False
+            for layer in self._layers:
+                for p in layer.self_attn.parameters():
+                    p.requires_grad = False
+                layer.input_layernorm.weight.requires_grad = False
+                layer.post_attention_layernorm.weight.requires_grad = False
+
+        for layer in self._layers:
+            mlp = layer.mlp
+            ld = mlp.locked_dim
+            if ld > 0:
+                h1 = mlp.gate_proj.weight.register_hook(
+                    partial(self._mask_grad_rows, locked=ld)
+                )
+                h2 = mlp.up_proj.weight.register_hook(
+                    partial(self._mask_grad_rows, locked=ld)
+                )
+                h3 = mlp.down_proj.weight.register_hook(
+                    partial(self._mask_grad_cols, locked=ld)
+                )
+                self.hooks.extend([h1, h2, h3])
+
+    @staticmethod
+    def _mask_grad_rows(grad, locked):
+        grad[:locked] = 0.0
+        return grad
+
+    @staticmethod
+    def _mask_grad_cols(grad, locked):
+        grad[:, :locked] = 0.0
+        return grad
+
+    # ── [Core 3] sync_optimizer ──────────────────────────────────────
+
+    def sync_optimizer(self, optimizer):
+        """Remove stale parameter keys from optimizer state and add new trainable params."""
+        model_param_ids = set(id(p) for p in self.parameters() if p.requires_grad)
+
+        stale = [p for p in optimizer.state.keys() if id(p) not in model_param_ids]
+        for p in stale:
+            del optimizer.state[p]
+
+        for group in optimizer.param_groups:
+            group["params"] = [
+                p for p in group["params"] if id(p) in model_param_ids
+            ]
+
+        tracked = set(id(p) for group in optimizer.param_groups for p in group["params"])
+        new_params = [
+            p for p in self.parameters()
+            if p.requires_grad and id(p) not in tracked
+        ]
+        if new_params:
+            optimizer.add_param_group({"params": new_params})
+
+    # ── [Core 4] defrag ────────────────────────────────────────
+
+    def defrag(self, optimizer, fusion_data: Optional[torch.Tensor] = None, target_replay_size: int = 32):
+        """Unlock last 6 layers' attention + final norm, replay *fusion_data*."""
+        if fusion_data is None:
+            print("⚠️  No fusion data provided, skipping defrag.")
+            return
+
+        orig_requires_grad = {id(p): p.requires_grad for p in self.parameters()}
+
+        try:
+            for p in self.parameters():
+                p.requires_grad = False
+
+            unlock_start = max(0, len(self._layers) - 6)
+            for i in range(unlock_start, len(self._layers)):
+                layer = self._layers[i]
+                for name, p in layer.named_parameters():
+                    if "self_attn" in name:
+                        p.requires_grad = True
+                layer.input_layernorm.weight.requires_grad = True
+                layer.post_attention_layernorm.weight.requires_grad = True
+
+            self.model.model.norm.weight.requires_grad = True
+
+            orig_lrs = [pg["lr"] for pg in optimizer.param_groups]
+            for pg in optimizer.param_groups:
+                pg["lr"] = 1e-5
+
+            self.sync_optimizer(optimizer)
+
+            for _ in range(target_replay_size):
+                optimizer.zero_grad()
+                _, loss = self(fusion_data, labels=fusion_data)
+                if loss is not None and not (torch.isnan(loss) or torch.isinf(loss)):
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+                    optimizer.step()
+
+            for pg, lr in zip(optimizer.param_groups, orig_lrs):
+                pg["lr"] = lr
+
+        finally:
+            for p in self.parameters():
+                if id(p) in orig_requires_grad:
+                    p.requires_grad = orig_requires_grad[id(p)]
+            self.sync_optimizer(optimizer)
+
+    # ── generate ──────────────────────────────────────────────────────
 
     @torch.no_grad()
     def generate(self, input_ids, **kwargs):
