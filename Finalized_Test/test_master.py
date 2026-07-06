@@ -5,7 +5,7 @@ from transformers import AutoTokenizer
 from models import GrowableLLM, ModelConfig
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
-with open(CONFIG_PATH, "r") as f:
+with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     full_config = json.load(f)
 
 model_cfg = full_config["model"]

@@ -138,7 +138,7 @@ Growable-LLM/
 
 ## Contact
 
-Bug reports and suggestions: **18200793117@163.com** | **tbnl_zldyd@outlook.com**
+Bug reports and suggestions: **18200793117@163.com**
 
 ---
 

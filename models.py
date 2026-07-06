@@ -191,19 +191,19 @@ class DynamicSwiGLU(nn.Module):
 
     def expand(self, extra_dim=512):
         """
-        原地扩展权重矩阵。
-    🔧 方案D：三个参数全部随机初始化（PyTorch 默认 Kaiming），
+        原地扩展权重矩阵：三个投影的新部分全部 Kaiming 随机初始化。
         新神经元三个参数都能学，梯度全部非零。
+
+        注意：gate/up/down 新部分均随机初始化，因此 expand 后前向输出会变化（不等价于扩维前）。
+        但 HookLock 保护了旧参数（梯度置零），旧知识不受影响；新神经元从零开始学。
         """
         old_dim = self.current_dim
         new_dim = old_dim + extra_dim
 
         # ══════════════════════════════════════════════════════
-        # gate_proj: 旧部分复制，新部分随机初始化
+        # gate_proj: 旧部分复制，新部分随机初始化（Kaiming）
         # ══════════════════════════════════════════════════════
-        # 🔧 改动：用 nn.Linear 默认随机初始化，替代原来的 torch.zeros
-        #   原来：new_gate_w = torch.zeros(...)  → 新行全零 → 梯度死
-        #   现在：tmp_gate = nn.Linear(...)       → 新行随机 → 梯度活
+        # 随机初始化 → silu(gate) ≠ 0 → 新 dim 梯度活跃 
         tmp_gate = nn.Linear(self.hidden_dim, new_dim, bias=False).to(
             self.gate_proj.weight.device
         )
@@ -212,11 +212,9 @@ class DynamicSwiGLU(nn.Module):
         self.gate_proj.out_features = new_dim
 
         # ══════════════════════════════════════════════════════
-        # up_proj: 旧部分复制，新部分随机初始化
+        # up_proj: 旧部分复制，新部分随机初始化（Kaiming）
         # ══════════════════════════════════════════════════════
-        # 🔧 改动：同上，用 nn.Linear 默认随机初始化，替代原来的 torch.zeros
-        #   原来：new_up_w = torch.zeros(...) + nn.Parameter  → 新行全零 → 梯度死
-        #   现在：tmp_up = nn.Linear(...)                      → 新行随机 → 梯度活
+        # 随机初始化 → 新 dim 梯度活跃 
         tmp_up = nn.Linear(self.hidden_dim, new_dim, bias=False).to(
             self.up_proj.weight.device
         )
@@ -225,11 +223,9 @@ class DynamicSwiGLU(nn.Module):
         self.up_proj.out_features = new_dim
 
         # ══════════════════════════════════════════════════════
-        # down_proj: 旧部分复制，新部分随机初始化
+        # down_proj: 旧部分复制，新部分随机初始化（Kaiming）
         # ══════════════════════════════════════════════════════
-        # 🔧 改动：用 nn.Linear 默认随机初始化，替代原来的 torch.zeros + nn.init.normal_(std=0.02)
-        #   原来：new_down_w = torch.zeros(...) + nn.init.normal_(std=0.02)
-        #   现在：tmp_down = nn.Linear(...)  → Kaiming uniform 初始化
+        # 随机初始化 → 新 dim 的输出影响 loss，梯度回传 
         tmp_down = nn.Linear(new_dim, self.hidden_dim, bias=False).to(
             self.down_proj.weight.device
         )

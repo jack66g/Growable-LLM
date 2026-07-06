@@ -34,7 +34,7 @@ if tokenizer.pad_token_id is None:
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
 # 加载 Phase 2 权重
-WEIGHTS_PATH = "/home/tbnl/Growable-LLM/Experiment_Replication/growable_qwen_med_expert_epoch3.pt"
+WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "growable_qwen_med_expert_epoch3.pt")
 
 model = GrowableQwen2ForCausalLM.from_pretrained(MODEL_ID).to(DEVICE)
 # Phase 1: +256, Phase 2: +128, 总计 +384
@@ -73,8 +73,7 @@ with torch.no_grad():
         inputs = tokenizer(text, return_tensors="pt", max_length=MAX_LENGTH, truncation=True)
         input_ids = inputs["input_ids"].to(DEVICE)
 
-        outputs = model(input_ids, labels=input_ids)
-        loss = outputs.loss
+        _, loss = model(input_ids, labels=input_ids)
 
         total_loss += loss.item() * input_ids.shape[1]
         total_tokens += input_ids.shape[1]
