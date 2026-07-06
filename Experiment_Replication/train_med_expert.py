@@ -43,7 +43,7 @@ LEARNING_RATE = 1e-4
 ACCUMULATION_STEPS = 32
 
 # =====================================================
-# 1. 数据集构建
+# 1. 数据集构建（预处理 tokenization，避免运行时重复编码）
 # =====================================================
 class DomainDataset(Dataset):
     def __init__(self, data_path, tokenizer, max_length, system_prompt, limit=None):
@@ -52,41 +52,43 @@ class DomainDataset(Dataset):
         self.system_prompt = system_prompt
         self.data = []
 
-        print(f"Loading data: {data_path}...")
+        print(f"Loading and tokenizing data: {data_path}...")
         with open(data_path, "r", encoding="utf-8") as f:
             for line in f:
                 if line.strip():
-                    self.data.append(json.loads(line.strip()))
+                    item = json.loads(line.strip())
+
+                    prompt = (
+                        f"<|im_start|>system\n{self.system_prompt}<|im_end|>\n"
+                        f"<|im_start|>user\n{item.get('instruction', '')}\n{item.get('input', '')}<|im_end|>\n"
+                        f"<|im_start|>assistant\n"
+                    )
+                    response = f"{item.get('output', '')}<|im_end|>"
+
+                    # 预处理：提前 tokenize，只存 IDs
+                    p_ids = tokenizer.encode(prompt, add_special_tokens=False)
+                    r_ids = tokenizer.encode(response, add_special_tokens=False)
+
+                    input_ids = (p_ids + r_ids)[:max_length]
+                    labels = [-100] * len(p_ids) + r_ids
+                    labels = labels[:max_length]
+
+                    if all(l == -100 for l in labels):
+                        labels[-1] = input_ids[-1]
+
+                    self.data.append((input_ids, labels))
 
         if limit:
             random.shuffle(self.data)
             self.data = self.data[:limit]
 
-        print(f"Loaded {len(self.data)} samples.")
+        print(f"Tokenized {len(self.data)} samples.")
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        item = self.data[idx]
-
-        prompt = (
-            f"<|im_start|>system\n{self.system_prompt}<|im_end|>\n"
-            f"<|im_start|>user\n{item.get('instruction', '')}\n{item.get('input', '')}<|im_end|>\n"
-            f"<|im_start|>assistant\n"
-        )
-        response = f"{item.get('output', '')}<|im_end|>"
-
-        p_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
-        r_ids = self.tokenizer.encode(response, add_special_tokens=False)
-
-        input_ids = (p_ids + r_ids)[:self.max_length]
-        labels = [-100] * len(p_ids) + r_ids
-        labels = labels[:self.max_length]
-
-        if all(l == -100 for l in labels):
-            labels[-1] = input_ids[-1]
-
+        input_ids, labels = self.data[idx]
         return torch.tensor(input_ids, dtype=torch.long), torch.tensor(labels, dtype=torch.long)
 
 

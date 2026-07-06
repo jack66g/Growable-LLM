@@ -1,49 +1,49 @@
 """
-Qwen1.5-0.5B Phase 1: Chat Expert Training (HF backbone)
-
-Uses GrowableQwen2ForCausalLM instead of hand-written GrowableLLM.
-Optimized for 8GB VRAM: batch_size=1, gradient_accumulation=32.
+性能测试脚本：运行 1 分钟后自动终止
+用于测试 VRAM、CPU、内存占用
 """
 
 import os
 import sys
-import json
+import time
 import torch
+import psutil
+import threading
+from datetime import datetime
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, get_cosine_schedule_with_warmup
 from tqdm import tqdm
 
-# Windows GBK 兼容
 os.environ["PYTHONIOENCODING"] = "utf-8"
 if hasattr(sys.stdout, "buffer"):
     sys.stdout = open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)
 
-# 确保能导入根目录的 models_hf.py
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 from models_hf import GrowableQwen2ForCausalLM
 
 # =====================================================
-# [配置区]
+# 配置
 # =====================================================
 CHAT_DATA_PATH = "daily_chat_clean_cleaned.jsonl"
 MODEL_ID = "Qwen/Qwen1.5-0.5B"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# 8GB VRAM 适配：bs=1 + 大梯度累积
 BATCH_SIZE = 1
 MAX_LENGTH = 768
-EPOCHS = 3
+EPOCHS = 1
 LEARNING_RATE = 1e-4
 EXPAND_DIM = 256
-ACCUMULATION_STEPS = 32  # 等效 batch_size = 1 * 32 = 32
+ACCUMULATION_STEPS = 32
+RUNTIME_LIMIT = 60  # 1 分钟后自动终止
 
 # =====================================================
-# 1. 数据集构建（预处理 tokenization，避免运行时重复编码）
+# 数据集（复用 train_chat_expert 的预处理逻辑）
 # =====================================================
 class ChatDataset(Dataset):
     def __init__(self, data_path, tokenizer, max_length):
+        import json
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.data = []
@@ -53,7 +53,6 @@ class ChatDataset(Dataset):
             for line in f:
                 if line.strip():
                     item = json.loads(line.strip())
-
                     prompt = (
                         f"<|im_start|>system\nYou are a helpful AI assistant.<|im_end|>\n"
                         f"<|im_start|>user\n{item.get('instruction', '')}\n{item.get('input', '')}<|im_end|>\n"
@@ -61,7 +60,6 @@ class ChatDataset(Dataset):
                     )
                     response = f"{item.get('output', '')}<|im_end|>"
 
-                    # 预处理：提前 tokenize，只存 IDs
                     p_ids = tokenizer.encode(prompt, add_special_tokens=False)
                     r_ids = tokenizer.encode(response, add_special_tokens=False)
 
@@ -97,21 +95,82 @@ class ChatCollate:
 
 
 # =====================================================
-# 2. Phase 1: Chat Expert Training
+# 性能监控
+# =====================================================
+class PerformanceMonitor:
+    def __init__(self):
+        self.running = True
+        self.stats = []
+        self.thread = threading.Thread(target=self._monitor)
+        self.thread.start()
+
+    def _monitor(self):
+        process = psutil.Process()
+        while self.running:
+            try:
+                vram = torch.cuda.memory_allocated() / (1024**2) if torch.cuda.is_available() else 0
+                vram_reserved = torch.cuda.memory_reserved() / (1024**2) if torch.cuda.is_available() else 0
+                mem = process.memory_info().rss / (1024**2)
+                cpu = process.cpu_percent()
+
+                self.stats.append({
+                    'time': time.time(),
+                    'vram_mb': vram,
+                    'vram_reserved_mb': vram_reserved,
+                    'mem_mb': mem,
+                    'cpu_percent': cpu
+                })
+            except:
+                pass
+            time.sleep(1)
+
+    def stop(self):
+        self.running = False
+        self.thread.join()
+
+    def report(self):
+        if not self.stats:
+            return "No stats recorded"
+
+        vram_max = max(s['vram_mb'] for s in self.stats)
+        vram_avg = sum(s['vram_mb'] for s in self.stats) / len(self.stats)
+        mem_max = max(s['mem_mb'] for s in self.stats)
+        mem_avg = sum(s['mem_mb'] for s in self.stats) / len(self.stats)
+        cpu_max = max(s['cpu_percent'] for s in self.stats)
+        cpu_avg = sum(s['cpu_percent'] for s in self.stats) / len(self.stats)
+
+        return f"""
+========================================
+性能报告 (采集 {len(self.stats)} 秒)
+========================================
+VRAM 峰值: {vram_max:.1f} MB
+VRAM 平均: {vram_avg:.1f} MB
+内存 峰值: {mem_max:.1f} MB
+内存 平均: {mem_avg:.1f} MB
+CPU 峰值: {cpu_max:.1f}%
+CPU 平均: {cpu_avg:.1f}%
+========================================
+"""
+
+
+# =====================================================
+# 主程序
 # =====================================================
 def main():
-    print(f"[Phase 1] Chat Expert Training | Device: {DEVICE}")
+    print(f"[Perf Test] Qwen Training | Device: {DEVICE}")
+    print(f"[Perf Test] Will auto-kill after {RUNTIME_LIMIT} seconds")
+    print("=" * 50)
+
+    start_time = time.time()
 
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
 
-    # 从 HF 加载预训练模型（自动切换 DynamicSwiGLUMLP）
     model = GrowableQwen2ForCausalLM.from_pretrained(MODEL_ID).to(DEVICE)
-    print(f"Base model loaded! Params: {sum(p.numel() for p in model.parameters())/1e6:.1f}M")
+    print(f"Model loaded! Params: {sum(p.numel() for p in model.parameters())/1e6:.1f}M")
 
-    # 正交扩容 256 维
     model.expand_model(extra_dim=EXPAND_DIM)
     print(f"Expanded +{EXPAND_DIM} dim! Params: {sum(p.numel() for p in model.parameters())/1e6:.1f}M")
 
@@ -126,7 +185,7 @@ def main():
         batch_size=BATCH_SIZE,
         shuffle=True,
         collate_fn=collate_fn,
-        num_workers=0,  # Windows 兼容
+        num_workers=0,
         pin_memory=True,
     )
 
@@ -135,20 +194,28 @@ def main():
         optimizer, num_warmup_steps=int(total_steps * 0.05), num_training_steps=total_steps
     )
 
-    print(f"\n{'='*50}")
-    print(f"HookLock active! Only new {EXPAND_DIM}-dim synapses receive gradients.")
-    print(f"Training: {EPOCHS} epochs, {len(dataset)} samples, grad_accum={ACCUMULATION_STEPS}")
-    print(f"{'='*50}\n")
+    print(f"\nTraining config: {EPOCHS} epochs, {len(dataset)} samples, grad_accum={ACCUMULATION_STEPS}")
+    print(f"Estimated time per step: ~2-3s")
+    print(f"Estimated steps in {RUNTIME_LIMIT}s: ~{RUNTIME_LIMIT//3}\n")
+
+    # 启动性能监控
+    monitor = PerformanceMonitor()
 
     model.train()
     torch.set_float32_matmul_precision('high')
 
-    for epoch in range(EPOCHS):
-        total_loss = 0
-        progress_bar = tqdm(loader, desc=f"Chat Epoch {epoch+1}/{EPOCHS}")
-        optimizer.zero_grad()
+    progress_bar = tqdm(loader, desc="Training")
+    optimizer.zero_grad()
 
+    step_count = 0
+    try:
         for step, (input_ids, labels) in enumerate(progress_bar):
+            # 检查是否超时
+            elapsed = time.time() - start_time
+            if elapsed >= RUNTIME_LIMIT:
+                print(f"\n⏰ Time limit ({RUNTIME_LIMIT}s) reached! Stopping...")
+                break
+
             input_ids, labels = input_ids.to(DEVICE, non_blocking=True), labels.to(DEVICE, non_blocking=True)
 
             with torch.autocast(device_type=DEVICE, dtype=torch.bfloat16):
@@ -162,26 +229,26 @@ def main():
                 scheduler.step()
                 optimizer.zero_grad()
 
-            total_loss += loss.item()
-            if step % 10 == 0:
-                progress_bar.set_postfix({
-                    'loss': f"{loss.item():.4f}",
-                    'lr': f"{scheduler.get_last_lr()[0]:.2e}"
-                })
+            step_count = step + 1
+            progress_bar.set_postfix({
+                'loss': f"{loss.item():.4f}",
+                'elapsed': f"{elapsed:.0f}s"
+            })
 
-        # 清空剩余梯度
-        if (step + 1) % ACCUMULATION_STEPS != 0:
+        # 清理最后的梯度
+        if step_count % ACCUMULATION_STEPS != 0:
             optimizer.step()
             optimizer.zero_grad()
 
-        avg_loss = total_loss / len(loader)
-        vram_mb = torch.cuda.memory_allocated() / (1024**2)
-        print(f"Epoch {epoch+1} done! Avg Loss: {avg_loss:.4f} | VRAM: {vram_mb:.0f} MB")
+    except KeyboardInterrupt:
+        print("\n⚠ Interrupted by user")
 
-    SAVE_PATH = "growable_qwen_chat_expert_epoch3.pt"
-    torch.save(model.state_dict(), SAVE_PATH)
-    print(f"\nChat expert weights saved to: {SAVE_PATH}")
-    print("Next: run train_med_expert.py for Phase 2 (Medical domain + defrag)")
+    # 停止监控并输出报告
+    monitor.stop()
+    print(monitor.report())
+
+    elapsed = time.time() - start_time
+    print(f"Total steps: {step_count}, Time: {elapsed:.1f}s, Speed: {step_count/elapsed:.2f} steps/s")
 
 
 if __name__ == "__main__":
